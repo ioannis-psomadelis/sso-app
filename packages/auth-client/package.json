@@ -1,0 +1,19 @@
+{
+  "name": "@repo/auth-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pkce": "./src/pkce.ts",
+    "./oauth": "./src/oauth.ts",
+    "./tokens": "./src/tokens.ts",
+    "./debug": "./src/debug.ts"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

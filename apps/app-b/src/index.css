@@ -1,0 +1,4 @@
+@import "@repo/ui/styles.css";
+
+/* Tell Tailwind to scan this app's source files */
+@source "./**/*.{ts,tsx}";
