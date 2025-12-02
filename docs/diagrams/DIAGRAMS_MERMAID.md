@@ -1,43 +1,43 @@
 # SSO Διαγράμματα (Mermaid)
 
-Τα παρακάτω διαγράμματα εμφανίζονται αυτόματα στο GitHub και VS Code.
-
 ---
 
 ## 1. Αρχιτεκτονική SSO
 
 ```mermaid
 flowchart TB
-    subgraph Browser["Browser (User)"]
-        U[User]
+    subgraph USER["BROWSER"]
+        U["User"]
     end
 
-    subgraph Apps["Client Applications"]
-        A[App A<br/>TaskFlow<br/>:3001]
-        B[App B<br/>DocVault<br/>:3002]
+    subgraph APPS["CLIENT APPS"]
+        direction LR
+        A["App A<br/><b>TaskFlow</b><br/>localhost:3001"]
+        B["App B<br/><b>DocVault</b><br/>localhost:3002"]
     end
 
-    subgraph IdP["Identity Provider"]
-        IDP[Local IdP<br/>Broker<br/>:3000]
-        DB[(SQLite DB<br/>Users, Sessions<br/>Tokens)]
+    subgraph IDP_LAYER["IDENTITY LAYER"]
+        IDP["Local IdP<br/><b>Auth Broker</b><br/>localhost:3000"]
+        DB[("SQLite<br/>Users | Sessions<br/>Tokens")]
     end
 
-    subgraph External["External Provider"]
-        KC[Keycloak<br/>University]
+    subgraph EXTERNAL["EXTERNAL"]
+        KC["Keycloak<br/><b>University IdP</b>"]
     end
 
-    U --> A
-    U --> B
-    A -->|OAuth 2.0 + PKCE| IDP
-    B -->|OAuth 2.0 + PKCE| IDP
-    IDP -->|Federation| KC
-    IDP --> DB
+    U ==>|"visits"| A
+    U ==>|"visits"| B
+    A <-->|"OAuth 2.0<br/>+ PKCE"| IDP
+    B <-->|"OAuth 2.0<br/>+ PKCE"| IDP
+    IDP <-->|"Federation"| KC
+    IDP <-->|"Store"| DB
 
-    style A fill:#b2f2bb,stroke:#2f9e44
-    style B fill:#ffc9c9,stroke:#e8590c
-    style IDP fill:#eebefa,stroke:#9c36b5
-    style KC fill:#74c0fc,stroke:#1864ab
-    style DB fill:#dee2e6,stroke:#495057
+    style U fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#1976D2
+    style A fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#1B5E20
+    style B fill:#FFF3E0,stroke:#F57C00,stroke-width:3px,color:#E65100
+    style IDP fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#4A148C
+    style KC fill:#E3F2FD,stroke:#1565C0,stroke-width:3px,color:#0D47A1
+    style DB fill:#ECEFF1,stroke:#546E7A,stroke-width:2px,color:#37474F
 ```
 
 ---
@@ -45,193 +45,251 @@ flowchart TB
 ## 2. Πρώτη Σύνδεση (Local IdP)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#e3f2fd', 'actorBorder': '#1565c0' }}}%%
 sequenceDiagram
+    autonumber
+
     participant U as Browser
     participant A as App A
     participant IDP as IdP
 
-    U->>A: 1. Visit App (no token)
+    rect rgb(144, 202, 249)
+        Note over U,A: User wants to login
+        U->>+A: Visit App (no token)
+    end
 
-    Note over A: Generate PKCE<br/>code_verifier + code_challenge
+    rect rgb(165, 214, 167)
+        Note over A: Generate PKCE<br/>verifier + challenge
+        A-->>-U: Redirect to IdP
+    end
 
-    A->>U: 2. Redirect to IdP
-    U->>IDP: 3. GET /authorize<br/>+ code_challenge + state
+    rect rgb(206, 147, 216)
+        U->>+IDP: GET /authorize<br/>code_challenge + state
+        Note over IDP: No session found
+        IDP-->>U: Login Page
+        U->>IDP: POST credentials
+        Note over IDP: Validate credentials<br/>Create session cookie
+        IDP-->>-U: Redirect + auth code
+    end
 
-    Note over IDP: No session found
-
-    IDP->>U: 4. Show Login Page
-    U->>IDP: 5. POST credentials
-
-    Note over IDP: Validate credentials<br/>Create session<br/>Set session_id cookie
-
-    IDP->>U: 6. Redirect with auth code
-    U->>A: 7. Callback with code + state
-
-    Note over A: Verify state parameter
-
-    A->>IDP: 8. POST /token<br/>+ code + code_verifier
-
-    Note over IDP: Verify PKCE:<br/>SHA256(verifier) == challenge
-
-    IDP->>A: 9. Tokens (access, id, refresh)
-
-    Note over A: Store tokens in localStorage
-
-    A->>U: 10. Authenticated!
+    rect rgb(165, 214, 167)
+        U->>+A: Callback + code
+        Note over A: Verify state
+        A->>+IDP: POST /token<br/>code + verifier
+        Note over IDP: PKCE Check<br/>SHA256(verifier) = challenge
+        IDP-->>-A: Tokens
+        Note over A: Store in localStorage
+        A-->>-U: Authenticated!
+    end
 ```
 
 ---
 
-## 3. SSO Auto-Login (App B μετά από App A)
+## 3. SSO Auto-Login (Το "Μαγικό" του SSO)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#fff3e0', 'actorBorder': '#e65100' }}}%%
 sequenceDiagram
-    participant U as Browser
+    autonumber
+
+    participant U as Browser<br/>has session cookie
     participant B as App B
     participant IDP as IdP
 
-    Note over U: Already logged in to App A<br/>Has session_id cookie for IdP
+    rect rgb(255, 183, 77)
+        Note over U: Already logged in to App A<br/>Has session_id cookie for IdP
+    end
 
-    U->>B: 1. Visit App B (no token)
+    rect rgb(255, 183, 77)
+        U->>+B: Visit App B (no token)
+        Note over B: Generate PKCE
+        B-->>-U: Redirect to IdP
+    end
 
-    Note over B: Generate PKCE
+    rect rgb(206, 147, 216)
+        U->>+IDP: GET /authorize<br/>session_id cookie (auto!)
 
-    B->>U: 2. Redirect to IdP
-    U->>IDP: 3. GET /authorize<br/>+ session_id cookie (automatic!)
+        Note over IDP: Session Found!<br/>User already authenticated<br/>NO LOGIN NEEDED!
 
-    Note over IDP: Session found!<br/>User already authenticated<br/>NO LOGIN NEEDED
+        IDP-->>-U: IMMEDIATE redirect<br/>+ auth code
+    end
 
-    IDP->>U: 4. Immediate redirect with auth code
-    U->>B: 5. Callback with code
-    B->>IDP: 6. POST /token + code_verifier
-    IDP->>B: 7. Tokens
-    B->>U: 8. Authenticated!<br/>(User never saw login page)
+    rect rgb(255, 183, 77)
+        U->>+B: Callback + code
+        B->>+IDP: POST /token
+        IDP-->>-B: Tokens
+        B-->>-U: Authenticated!
+    end
 
-    Note over U,IDP: SSO Magic: Same session_id cookie<br/>sent to IdP from any app!
+    rect rgb(129, 199, 132)
+        Note over U,IDP: SSO MAGIC: User never saw login page!<br/>Session cookie was sent automatically to IdP
+    end
 ```
 
 ---
 
-## 4. Keycloak Federation Flow
+## 4. Keycloak Federation (Double PKCE)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#e8f5e9', 'actorBorder': '#2e7d32' }}}%%
 sequenceDiagram
+    autonumber
+
     participant U as Browser
     participant A as App
     participant IDP as Local IdP
     participant KC as Keycloak
 
-    U->>A: 1. Click "Sign in with Keycloak"
+    rect rgb(165, 214, 167)
+        U->>+A: Click "Sign in with Keycloak"
+        Note over A: Generate PKCE #1<br/>(App - IdP)
+        A-->>-U: Redirect
+    end
 
-    Note over A: Generate PKCE #1<br/>(App ↔ IdP)
+    rect rgb(206, 147, 216)
+        U->>+IDP: GET /federated/keycloak/start<br/>PKCE #1 challenge
+        Note over IDP: Validate client<br/>Generate PKCE #2<br/>(IdP - Keycloak)<br/>Store in cookie
+        IDP-->>-U: Redirect to Keycloak
+    end
 
-    A->>U: 2. Redirect to IdP federation
-    U->>IDP: 3. GET /auth/federated/keycloak/start<br/>+ PKCE #1 challenge
+    rect rgb(144, 202, 249)
+        U->>+KC: GET /auth + PKCE #2
+        KC-->>U: University Login Page
+        U->>KC: Enter credentials
+        Note over KC: Authenticate
+        KC-->>-U: Redirect + KC code
+    end
 
-    Note over IDP: Validate client<br/>Generate PKCE #2<br/>(IdP ↔ Keycloak)<br/>Store state in cookie
+    rect rgb(206, 147, 216)
+        U->>+IDP: GET /callback + KC code
+        IDP->>+KC: Exchange code + PKCE #2 verifier
+        KC-->>-IDP: KC Tokens + UserInfo
+        Note over IDP: Create/Link user<br/>Create session<br/>Generate new code
+        IDP-->>-U: Redirect to App
+    end
 
-    IDP->>U: 4. Redirect to Keycloak
-    U->>KC: 5. GET Keycloak /auth<br/>+ PKCE #2 challenge
-    KC->>U: 6. University Login Page
-    U->>KC: 7. Enter university credentials
-
-    Note over KC: Authenticate user
-
-    KC->>U: 8. Redirect with KC auth code
-    U->>IDP: 9. GET /federated/keycloak/callback
-
-    IDP->>KC: 10. Exchange KC code<br/>+ PKCE #2 verifier
-    KC->>IDP: 11. KC Tokens + UserInfo
-
-    Note over IDP: Create/link local user<br/>Create IdP session<br/>Generate new auth code
-
-    IDP->>U: 12. Redirect to App<br/>+ new auth code
-    U->>A: 13. Callback with code
-    A->>IDP: 14. Exchange code<br/>+ PKCE #1 verifier
-    IDP->>A: 15. IdP Tokens
-    A->>U: 16. Authenticated!
-```
-
----
-
-## 5. Token Refresh Flow
-
-```mermaid
-sequenceDiagram
-    participant A as App
-    participant IDP as IdP
-
-    Note over A: Every 30 seconds:<br/>Check token expiration
-
-    alt Token expires in < 60s
-        A->>IDP: POST /token<br/>grant_type=refresh_token<br/>refresh_token=xxx
-
-        Note over IDP: Validate refresh token<br/>Generate new tokens<br/>Rotate refresh token
-
-        IDP->>A: New tokens<br/>(access + refresh + id)
-
-        Note over A: Update localStorage
-    else Token still valid
-        Note over A: Do nothing
+    rect rgb(165, 214, 167)
+        U->>+A: Callback + new code
+        A->>+IDP: Exchange + PKCE #1 verifier
+        IDP-->>-A: IdP Tokens
+        A-->>-U: Authenticated!
     end
 ```
 
 ---
 
-## 6. Logout Flow
+## 5. Token Lifecycle
 
 ```mermaid
+flowchart LR
+    subgraph TOKENS["TOKEN TYPES"]
+        direction TB
+        AT["<b>Access Token</b><br/>5 minutes<br/>API calls"]
+        RT["<b>Refresh Token</b><br/>24 hours<br/>Get new tokens"]
+        IT["<b>ID Token</b><br/>User info<br/>email, name"]
+    end
+
+    subgraph STORAGE["STORAGE"]
+        LS["localStorage<br/>(per app)"]
+    end
+
+    subgraph REFRESH["AUTO REFRESH"]
+        direction TB
+        CHECK{"Check<br/>every 30s"}
+        EXP{"Expires in<br/>< 60s?"}
+        REQ["POST /token<br/>refresh_token"]
+        NEW["New tokens"]
+    end
+
+    AT --> LS
+    RT --> LS
+    IT --> LS
+
+    CHECK --> EXP
+    EXP -->|Yes| REQ
+    EXP -->|No| CHECK
+    REQ --> NEW
+    NEW --> LS
+
+    style AT fill:#E8F5E9,stroke:#388E3C,stroke-width:2px,color:#1B5E20
+    style RT fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#E65100
+    style IT fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#0D47A1
+    style LS fill:#ECEFF1,stroke:#546E7A,stroke-width:2px,color:#263238
+```
+
+---
+
+## 6. PKCE Explained
+
+```mermaid
+flowchart TB
+    subgraph CLIENT["CLIENT (App)"]
+        direction TB
+        V["<b>code_verifier</b><br/>Random 32 bytes<br/><code>abc123xyz...</code>"]
+        C["<b>code_challenge</b><br/>SHA256(verifier)<br/><code>XYZ789...</code>"]
+        V -->|"SHA256 hash"| C
+    end
+
+    subgraph AUTH["AUTHORIZATION REQUEST"]
+        REQ["GET /authorize<br/>Sends challenge ONLY<br/>Never sends verifier"]
+    end
+
+    subgraph TOKEN["TOKEN REQUEST"]
+        TOK["POST /token<br/>Sends verifier<br/>+ authorization code"]
+    end
+
+    subgraph SERVER["SERVER (IdP)"]
+        direction TB
+        STORE["Stores challenge<br/>with auth code"]
+        VER{"Verify:<br/>SHA256(verifier)<br/>== challenge?"}
+        OK["Tokens Issued"]
+        FAIL["Rejected"]
+    end
+
+    C --> REQ
+    REQ --> STORE
+    V --> TOK
+    TOK --> VER
+    STORE --> VER
+    VER -->|"Match"| OK
+    VER -->|"No match"| FAIL
+
+    style V fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#B71C1C
+    style C fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
+    style OK fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
+    style FAIL fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#B71C1C
+    style STORE fill:#E1BEE7,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
+```
+
+---
+
+## 7. Logout Flow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#ffcdd2', 'actorBorder': '#c62828' }}}%%
 sequenceDiagram
+    autonumber
+
     participant U as Browser
     participant A as App
     participant IDP as IdP
 
-    U->>A: 1. Click Logout
-    A->>IDP: 2. POST /logout<br/>+ refresh_token
+    rect rgb(239, 154, 154)
+        U->>+A: Click "Logout"
+        A->>+IDP: POST /logout<br/>refresh_token
 
-    Note over IDP: Revoke refresh token<br/>Delete session
+        Note over IDP: Revoke refresh token<br/>Delete session
 
-    IDP->>A: 3. Success
+        IDP-->>-A: Success
 
-    Note over A: Clear localStorage<br/>(access, refresh, id tokens)
+        Note over A: Clear localStorage<br/>tokens = null
 
-    A->>U: 4. Logged out
-
-    Note over U: Other apps may still<br/>have valid tokens until<br/>they expire (5 min)
-```
-
----
-
-## 7. PKCE Flow Detail
-
-```mermaid
-flowchart LR
-    subgraph Client["Client (App)"]
-        V[code_verifier<br/>random 32 bytes]
-        C[code_challenge<br/>SHA256 of verifier]
+        A-->>-U: Logged out!
     end
 
-    subgraph Auth["Authorization"]
-        REQ["/authorize request<br/>sends challenge only"]
+    rect rgb(255, 183, 77)
+        Note over U,IDP: Warning: Other apps may still have<br/>valid tokens until they expire (5 min)
     end
-
-    subgraph Token["Token Exchange"]
-        TOK["/token request<br/>sends verifier"]
-        VER{Server verifies:<br/>SHA256 verifier<br/>== stored challenge}
-    end
-
-    V -->|SHA256| C
-    C --> REQ
-    V --> TOK
-    TOK --> VER
-
-    VER -->|Match| OK[Tokens Issued]
-    VER -->|No Match| FAIL[Rejected]
-
-    style V fill:#ffc9c9
-    style C fill:#b2f2bb
-    style OK fill:#b2f2bb
-    style FAIL fill:#ffc9c9
 ```
 
 ---
@@ -240,58 +298,137 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    users ||--o{ sessions : has
-    users ||--o{ refresh_tokens : has
-    users ||--o{ federated_identities : has
-    users ||--o{ authorization_codes : has
-    oauth_clients ||--o{ authorization_codes : issues
-    oauth_clients ||--o{ refresh_tokens : issues
+    USERS ||--o{ SESSIONS : "has"
+    USERS ||--o{ REFRESH_TOKENS : "has"
+    USERS ||--o{ FEDERATED_IDENTITIES : "linked to"
+    USERS ||--o{ AUTHORIZATION_CODES : "gets"
+    OAUTH_CLIENTS ||--o{ AUTHORIZATION_CODES : "issues"
+    OAUTH_CLIENTS ||--o{ REFRESH_TOKENS : "for"
 
-    users {
-        text id PK
-        text email UK
-        text password_hash
-        text name
-        timestamp created_at
+    USERS {
+        text id PK "UUID"
+        text email UK "unique"
+        text password_hash "hashed"
+        text name "display name"
+        timestamp created_at "date"
     }
 
-    oauth_clients {
-        text id PK
-        text secret
-        text name
-        text redirect_uris
-        timestamp created_at
+    OAUTH_CLIENTS {
+        text id PK "app-a, app-b"
+        text secret "optional"
+        text name "App Name"
+        json redirect_uris "callbacks"
+        timestamp created_at "date"
     }
 
-    sessions {
-        text id PK
-        text user_id FK
-        timestamp expires_at
+    SESSIONS {
+        text id PK "cookie value"
+        text user_id FK "user ref"
+        timestamp expires_at "24h"
     }
 
-    authorization_codes {
-        text code PK
-        text client_id FK
-        text user_id FK
-        text code_challenge
-        text redirect_uri
-        timestamp expires_at
+    AUTHORIZATION_CODES {
+        text code PK "one-time"
+        text client_id FK "client ref"
+        text user_id FK "user ref"
+        text code_challenge "PKCE"
+        text redirect_uri "url"
+        timestamp expires_at "10min"
     }
 
-    refresh_tokens {
-        text token PK
-        text user_id FK
-        text client_id FK
-        text scope
-        timestamp expires_at
+    REFRESH_TOKENS {
+        text token PK "token"
+        text user_id FK "user ref"
+        text client_id FK "client ref"
+        text scope "scope"
+        timestamp expires_at "24h"
     }
 
-    federated_identities {
-        text id PK
-        text user_id FK
-        text provider
-        text provider_sub
-        text email
-        timestamp created_at
+    FEDERATED_IDENTITIES {
+        text id PK "id"
+        text user_id FK "local user"
+        text provider "keycloak"
+        text provider_sub "KC user id"
+        text email "email"
+        timestamp created_at "date"
     }
+```
+
+---
+
+## 9. Security Overview
+
+```mermaid
+flowchart TB
+    subgraph THREATS["THREATS"]
+        T1["Code Interception"]
+        T2["CSRF Attack"]
+        T3["Token Theft"]
+        T4["Session Hijack"]
+    end
+
+    subgraph PROTECTIONS["PROTECTIONS"]
+        P1["<b>PKCE</b><br/>Code useless without verifier"]
+        P2["<b>State Parameter</b><br/>Random per request"]
+        P3["<b>Short Expiry</b><br/>Access: 5min"]
+        P4["<b>HttpOnly Cookies</b><br/>JS can't access"]
+    end
+
+    T1 -.->|"blocked by"| P1
+    T2 -.->|"blocked by"| P2
+    T3 -.->|"mitigated by"| P3
+    T4 -.->|"blocked by"| P4
+
+    style T1 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style T2 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style T3 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style T4 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style P1 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style P2 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style P3 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style P4 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+```
+
+---
+
+## 10. Complete SSO Flow Summary
+
+```mermaid
+flowchart TB
+    START(("Start"))
+
+    subgraph APP["Any App"]
+        CHECK{"Has valid<br/>access token?"}
+        USE["Use App"]
+        REDIRECT["Redirect to IdP<br/>+ PKCE challenge"]
+    end
+
+    subgraph IDP_FLOW["IdP"]
+        SESSION{"Has<br/>session?"}
+        LOGIN["Show Login"]
+        AUTH["Authenticate"]
+        CODE["Return code"]
+    end
+
+    subgraph TOKEN_FLOW["Token Exchange"]
+        EXCHANGE["Exchange code<br/>+ PKCE verifier"]
+        STORE["Store tokens"]
+    end
+
+    START --> CHECK
+    CHECK -->|"Yes"| USE
+    CHECK -->|"No"| REDIRECT
+    REDIRECT --> SESSION
+    SESSION -->|"Yes"| CODE
+    SESSION -->|"No"| LOGIN
+    LOGIN --> AUTH
+    AUTH --> CODE
+    CODE --> EXCHANGE
+    EXCHANGE --> STORE
+    STORE --> USE
+
+    style START fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#0D47A1
+    style USE fill:#C8E6C9,stroke:#2E7D32,stroke-width:3px,color:#1B5E20
+    style CODE fill:#E1BEE7,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
+    style SESSION fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#E65100
 ```
