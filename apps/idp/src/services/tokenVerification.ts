@@ -2,8 +2,15 @@
 
 import { jwtVerify, decodeJwt } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode('your-256-bit-secret-key-here');
-const LOCAL_ISSUER = 'http://localhost:3000';
+// Warn if using default JWT_SECRET in production
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('WARNING: Using default JWT_SECRET in production is insecure!');
+}
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production'
+);
+const LOCAL_ISSUER = process.env.IDP_URL || 'http://localhost:3000';
 
 export interface TokenVerificationResult {
   sub: string;

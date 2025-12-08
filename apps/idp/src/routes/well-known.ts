@@ -1,13 +1,15 @@
 import { FastifyPluginAsync } from 'fastify';
 
+const IDP_URL = process.env.IDP_URL || 'http://localhost:3000';
+
 export const wellKnownRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/.well-known/openid-configuration', async () => {
     return {
-      issuer: 'http://localhost:3000',
-      authorization_endpoint: 'http://localhost:3000/authorize',
-      token_endpoint: 'http://localhost:3000/token',
-      userinfo_endpoint: 'http://localhost:3000/userinfo',
-      end_session_endpoint: 'http://localhost:3000/logout',
+      issuer: IDP_URL,
+      authorization_endpoint: `${IDP_URL}/authorize`,
+      token_endpoint: `${IDP_URL}/token`,
+      userinfo_endpoint: `${IDP_URL}/userinfo`,
+      end_session_endpoint: `${IDP_URL}/logout`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       subject_types_supported: ['public'],

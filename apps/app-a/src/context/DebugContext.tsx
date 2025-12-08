@@ -9,11 +9,32 @@ interface DebugContextType {
 const DebugContext = createContext<DebugContextType | null>(null);
 
 const STORAGE_KEY = 'debug_events';
+const STORAGE_TIMESTAMP_KEY = 'debug_events_timestamp';
 const MAX_EVENTS = 50; // Keep last 50 events
+const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-// Load events from localStorage
+// Check if debug events should be cleared (older than 24 hours)
+function shouldClearEvents(): boolean {
+  try {
+    const timestamp = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+    if (!timestamp) return false;
+    const savedTime = parseInt(timestamp, 10);
+    return Date.now() - savedTime > MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}
+
+// Load events from localStorage (with 24-hour expiry check)
 function loadEventsFromStorage(): DebugEvent[] {
   try {
+    // Check if events are older than 24 hours
+    if (shouldClearEvents()) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+      return [];
+    }
+
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -28,7 +49,7 @@ function loadEventsFromStorage(): DebugEvent[] {
   return [];
 }
 
-// Save events to localStorage
+// Save events to localStorage with timestamp
 function saveEventsToStorage(events: DebugEvent[]): void {
   try {
     // Keep only the last MAX_EVENTS
@@ -37,6 +58,10 @@ function saveEventsToStorage(events: DebugEvent[]): void {
       timestamp: e.timestamp.toISOString()
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    // Set timestamp if not already set (first event starts the 24h timer)
+    if (!localStorage.getItem(STORAGE_TIMESTAMP_KEY)) {
+      localStorage.setItem(STORAGE_TIMESTAMP_KEY, Date.now().toString());
+    }
   } catch {
     // Ignore storage errors
   }
@@ -74,6 +99,7 @@ export function DebugProvider({ children }: { children: React.ReactNode }) {
     setEvents([]);
     debugEmitter.clearEvents();
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
   }, []);
 
   return (

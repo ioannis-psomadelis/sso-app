@@ -1,13 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
 import { db, users, authorizationCodes, oauthClients } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { createHash } from 'crypto';
+import bcrypt from 'bcrypt';
 import { createSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex');
-}
 
 export const loginRoute: FastifyPluginAsync = async (fastify) => {
   // GET /login - Show login form as HTML
@@ -203,13 +199,21 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
     } = request.body as Record<string, string>;
 
     // Find user
-    const user = db.select().from(users).where(eq(users.email, email)).get();
-    if (!user || user.passwordHash !== hashPassword(password)) {
+    const userResults = await db.select().from(users).where(eq(users.email, email));
+    const user = userResults[0];
+    if (!user) {
+      return reply.status(401).send({ error: 'invalid_credentials' });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
       return reply.status(401).send({ error: 'invalid_credentials' });
     }
 
     // Validate client
-    const client = db.select().from(oauthClients).where(eq(oauthClients.id, client_id)).get();
+    const clientResults = await db.select().from(oauthClients).where(eq(oauthClients.id, client_id));
+    const client = clientResults[0];
     if (!client) {
       return reply.status(400).send({ error: 'invalid_client' });
     }
@@ -218,7 +222,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
     const sessionId = await createSession(user.id);
     reply.setCookie('session_id', sessionId, {
       httpOnly: true,
-      secure: false, // Set to true in production
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 24 * 60 * 60, // 24 hours
@@ -226,7 +230,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
 
     // Generate auth code
     const code = uuid();
-    db.insert(authorizationCodes).values({
+    await db.insert(authorizationCodes).values({
       code,
       clientId: client_id,
       userId: user.id,
@@ -235,7 +239,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       scope: scope || 'openid profile email',
       redirectUri: redirect_uri,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    }).run();
+    });
 
     const redirectUrl = new URL(redirect_uri);
     redirectUrl.searchParams.set('code', code);

@@ -31,12 +31,11 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
     const userId = (request as any).userId;
 
     try {
-      const userTasks = db
+      const userTasks = await db
         .select()
         .from(tasks)
         .where(eq(tasks.userId, userId))
-        .orderBy(tasks.createdAt)
-        .all();
+        .orderBy(tasks.createdAt);
 
       return { tasks: userTasks };
     } catch (error) {
@@ -63,9 +62,10 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
         createdAt: new Date(),
       };
 
-      db.insert(tasks).values(newTask).run();
+      await db.insert(tasks).values(newTask);
 
-      const task = db.select().from(tasks).where(eq(tasks.id, newTask.id)).get();
+      const results = await db.select().from(tasks).where(eq(tasks.id, newTask.id));
+      const task = results[0];
 
       return reply.status(201).send({ task });
     } catch (error) {
@@ -81,23 +81,23 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
 
     try {
       // First check if the task exists and belongs to the user
-      const task = db
+      const results = await db
         .select()
         .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)))
-        .get();
+        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+      const task = results[0];
 
       if (!task) {
         return reply.status(404).send({ error: 'not_found', message: 'Task not found' });
       }
 
       // Toggle the completion status
-      db.update(tasks)
+      await db.update(tasks)
         .set({ completed: !task.completed })
-        .where(eq(tasks.id, id))
-        .run();
+        .where(eq(tasks.id, id));
 
-      const updatedTask = db.select().from(tasks).where(eq(tasks.id, id)).get();
+      const updatedResults = await db.select().from(tasks).where(eq(tasks.id, id));
+      const updatedTask = updatedResults[0];
 
       return { task: updatedTask };
     } catch (error) {
@@ -113,17 +113,17 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
 
     try {
       // First check if the task exists and belongs to the user
-      const task = db
+      const results = await db
         .select()
         .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)))
-        .get();
+        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+      const task = results[0];
 
       if (!task) {
         return reply.status(404).send({ error: 'not_found', message: 'Task not found' });
       }
 
-      db.delete(tasks).where(eq(tasks.id, id)).run();
+      await db.delete(tasks).where(eq(tasks.id, id));
 
       return reply.status(204).send();
     } catch (error) {

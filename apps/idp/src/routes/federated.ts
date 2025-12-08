@@ -5,21 +5,18 @@ import { createSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
 
-const KEYCLOAK_CONFIG = {
-  clientId: process.env.KEYCLOAK_CLIENT_ID || 'sso-demo-client',
-  baseUrl: process.env.KEYCLOAK_BASE_URL || 'http://localhost:8080/realms/sso-demo',
-  get authorizeUrl() {
-    return `${this.baseUrl}/protocol/openid-connect/auth`;
-  },
-  get tokenUrl() {
-    return `${this.baseUrl}/protocol/openid-connect/token`;
-  },
-  get userinfoUrl() {
-    return `${this.baseUrl}/protocol/openid-connect/userinfo`;
-  },
-  get logoutUrl() {
-    return `${this.baseUrl}/protocol/openid-connect/logout`;
-  },
+const IDP_URL = process.env.IDP_URL || 'http://localhost:3000';
+
+// Google OAuth 2.0 Configuration
+// Set these in your .env file:
+// GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+// GOOGLE_CLIENT_SECRET=your-client-secret
+const GOOGLE_CONFIG = {
+  clientId: process.env.GOOGLE_CLIENT_ID || '',
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenUrl: 'https://oauth2.googleapis.com/token',
+  userinfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
   scopes: 'openid email profile',
 };
 
@@ -77,7 +74,8 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'invalid_request' });
     }
 
-    const client = db.select().from(oauthClients).where(eq(oauthClients.id, client_id)).get();
+    const clientResults = await db.select().from(oauthClients).where(eq(oauthClients.id, client_id));
+    const client = clientResults[0];
     if (!client) {
       return reply.status(400).send({ error: 'invalid_client' });
     }
@@ -100,25 +98,29 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
 
     reply.setCookie('federation_state', JSON.stringify(federationState), {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 600,
     });
 
-    if (provider !== 'keycloak') {
-      return reply.status(400).send({ error: 'unsupported_provider' });
+    if (provider !== 'google') {
+      return reply.status(400).send({ error: 'unsupported_provider', message: 'Only Google SSO is supported' });
     }
 
-    const providerConfig = KEYCLOAK_CONFIG;
+    if (!GOOGLE_CONFIG.clientId) {
+      return reply.status(500).send({ error: 'configuration_error', message: 'Google OAuth not configured' });
+    }
 
-    const authorizeUrl = new URL(providerConfig.authorizeUrl);
-    authorizeUrl.searchParams.set('client_id', providerConfig.clientId!);
-    authorizeUrl.searchParams.set('redirect_uri', `http://localhost:3000/auth/federated/${provider}/callback`);
+    const authorizeUrl = new URL(GOOGLE_CONFIG.authorizeUrl);
+    authorizeUrl.searchParams.set('client_id', GOOGLE_CONFIG.clientId);
+    authorizeUrl.searchParams.set('redirect_uri', `${IDP_URL}/auth/federated/${provider}/callback`);
     authorizeUrl.searchParams.set('response_type', 'code');
-    authorizeUrl.searchParams.set('scope', providerConfig.scopes);
+    authorizeUrl.searchParams.set('scope', GOOGLE_CONFIG.scopes);
     authorizeUrl.searchParams.set('code_challenge', pkce.challenge);
     authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+    authorizeUrl.searchParams.set('access_type', 'offline');
+    authorizeUrl.searchParams.set('prompt', 'consent');
 
     return reply.redirect(authorizeUrl.toString());
   });
@@ -143,35 +145,40 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
     const federationState: FederationState = JSON.parse(federationStateCookie);
     reply.clearCookie('federation_state');
 
-    if (provider !== 'keycloak') {
+    if (provider !== 'google') {
       return reply.status(400).send({ error: 'unsupported_provider' });
     }
 
-    const providerConfig = KEYCLOAK_CONFIG;
+    if (!GOOGLE_CONFIG.clientId || !GOOGLE_CONFIG.clientSecret) {
+      return reply.status(500).send({ error: 'configuration_error', message: 'Google OAuth not configured' });
+    }
 
     try {
-      // Public client with PKCE - no client_secret needed
+      // Google requires client_secret even with PKCE for web applications
       const tokenParams = new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: `http://localhost:3000/auth/federated/${provider}/callback`,
-        client_id: providerConfig.clientId,
+        redirect_uri: `${IDP_URL}/auth/federated/${provider}/callback`,
+        client_id: GOOGLE_CONFIG.clientId,
+        client_secret: GOOGLE_CONFIG.clientSecret,
         code_verifier: federationState.pkceVerifier,
       });
 
-      const tokenResponse = await fetch(providerConfig.tokenUrl, {
+      const tokenResponse = await fetch(GOOGLE_CONFIG.tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: tokenParams.toString(),
       });
 
       if (!tokenResponse.ok) {
+        const errorBody = await tokenResponse.text();
+        fastify.log.error({ errorBody }, 'Google token exchange failed');
         return reply.status(500).send({ error: 'token_exchange_failed' });
       }
 
       const tokens: TokenResponse = await tokenResponse.json();
 
-      const userinfoResponse = await fetch(providerConfig.userinfoUrl, {
+      const userinfoResponse = await fetch(GOOGLE_CONFIG.userinfoUrl, {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
 
@@ -181,51 +188,53 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
 
       const userInfo: UserInfo = await userinfoResponse.json();
 
-      let user = db.select().from(users).where(eq(users.email, userInfo.email)).get();
+      let userResults = await db.select().from(users).where(eq(users.email, userInfo.email));
+      let user = userResults[0];
 
       if (!user) {
         const userId = uuid();
         const name = userInfo.name || userInfo.given_name || userInfo.email.split('@')[0];
-        db.insert(users).values({
+        await db.insert(users).values({
           id: userId,
           email: userInfo.email,
-          passwordHash: createHash('sha256').update(randomBytes(32)).digest('hex'),
+          passwordHash: 'OAUTH_USER_NO_LOCAL_PASSWORD',
           name,
           createdAt: new Date(),
-        }).run();
-        user = db.select().from(users).where(eq(users.id, userId)).get()!;
+        });
+        const newUserResults = await db.select().from(users).where(eq(users.id, userId));
+        user = newUserResults[0]!;
       }
 
-      const existingIdentity = db.select()
+      const existingIdentityResults = await db.select()
         .from(federatedIdentities)
         .where(and(
           eq(federatedIdentities.provider, provider),
           eq(federatedIdentities.providerSub, userInfo.sub)
-        ))
-        .get();
+        ));
+      const existingIdentity = existingIdentityResults[0];
 
       if (!existingIdentity) {
-        db.insert(federatedIdentities).values({
+        await db.insert(federatedIdentities).values({
           id: uuid(),
           userId: user.id,
           provider,
           providerSub: userInfo.sub,
           email: userInfo.email,
           createdAt: new Date(),
-        }).run();
+        });
       }
 
       const sessionId = await createSession(user.id);
       reply.setCookie('session_id', sessionId, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         maxAge: 24 * 60 * 60,
       });
 
       const authCode = uuid();
-      db.insert(authorizationCodes).values({
+      await db.insert(authorizationCodes).values({
         code: authCode,
         clientId: federationState.client_id,
         userId: user.id,
@@ -234,7 +243,7 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
         scope: federationState.scope,
         redirectUri: federationState.redirect_uri,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      }).run();
+      });
 
       const redirectUrl = new URL(federationState.redirect_uri);
       redirectUrl.searchParams.set('code', authCode);

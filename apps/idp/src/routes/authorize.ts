@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import { getSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
 
+const IDP_URL = process.env.IDP_URL || 'http://localhost:3000';
+
 export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
   fastify.get('/authorize', async (request, reply) => {
     const {
@@ -27,7 +29,8 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
     }
 
     // Validate client
-    const client = db.select().from(oauthClients).where(eq(oauthClients.id, client_id)).get();
+    const clients = await db.select().from(oauthClients).where(eq(oauthClients.id, client_id));
+    const client = clients[0];
     if (!client) {
       return reply.status(400).send({ error: 'invalid_client' });
     }
@@ -44,7 +47,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
     if (session) {
       // User already logged in - generate auth code
       const code = uuid();
-      db.insert(authorizationCodes).values({
+      await db.insert(authorizationCodes).values({
         code,
         clientId: client_id,
         userId: session.userId,
@@ -53,7 +56,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
         scope: scope || 'openid profile email',
         redirectUri: redirect_uri,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min
-      }).run();
+      });
 
       const redirectUrl = new URL(redirect_uri);
       redirectUrl.searchParams.set('code', code);
@@ -71,7 +74,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
     }
 
     // No session - show login page
-    const loginUrl = new URL('/login', 'http://localhost:3000');
+    const loginUrl = new URL('/login', IDP_URL);
     loginUrl.searchParams.set('client_id', client_id);
     loginUrl.searchParams.set('redirect_uri', redirect_uri);
     loginUrl.searchParams.set('scope', scope || 'openid profile email');

@@ -14,7 +14,8 @@ export const userinfoRoute: FastifyPluginAsync = async (fastify) => {
 
     try {
       const payload = await verifyAccessToken(token);
-      const user = db.select().from(users).where(eq(users.id, payload.sub)).get();
+      const results = await db.select().from(users).where(eq(users.id, payload.sub));
+      const user = results[0];
 
       if (!user) {
         return reply.status(401).send({ error: 'invalid_token' });

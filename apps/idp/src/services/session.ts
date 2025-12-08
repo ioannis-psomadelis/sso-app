@@ -8,21 +8,22 @@ export async function createSession(userId: string): Promise<string> {
   const sessionId = uuid();
   const expiresAt = new Date(Date.now() + SESSION_DURATION);
 
-  db.insert(sessions).values({
+  await db.insert(sessions).values({
     id: sessionId,
     userId,
     expiresAt,
-  }).run();
+  });
 
   return sessionId;
 }
 
 export async function getSession(sessionId: string): Promise<{ userId: string } | null> {
-  const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
+  const results = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+  const session = results[0];
 
   if (!session) return null;
   if (session.expiresAt < new Date()) {
-    db.delete(sessions).where(eq(sessions.id, sessionId)).run();
+    await db.delete(sessions).where(eq(sessions.id, sessionId));
     return null;
   }
 
@@ -30,5 +31,5 @@ export async function getSession(sessionId: string): Promise<{ userId: string } 
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  db.delete(sessions).where(eq(sessions.id, sessionId)).run();
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
 }

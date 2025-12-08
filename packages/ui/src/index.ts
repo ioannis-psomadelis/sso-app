@@ -27,7 +27,7 @@ export { ThemeToggle } from "./components/ThemeToggle"
 export { Toaster, toast } from "./components/Sonner"
 export { PageLoader, AuthLoader, Spinner } from "./components/PageLoader"
 export { AuthOverlay } from "./components/AuthOverlay"
-export { ProviderSelector, ProviderDivider, type Provider } from "./components/ProviderSelector"
+export { ProviderSelector, ProviderDivider, GoogleLogo, type Provider } from "./components/ProviderSelector"
 
 // Icons from lucide
 export {

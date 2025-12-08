@@ -17,7 +17,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
     try {
       const result = await verifyMultiProviderToken(token);
       await ensureUserExists(result);
-      const userDocs = db.select().from(documents).where(eq(documents.userId, result.sub)).all();
+      const userDocs = await db.select().from(documents).where(eq(documents.userId, result.sub));
 
       return {
         documents: userDocs.map((doc) => ({
@@ -62,9 +62,10 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         mimeType,
       };
 
-      db.insert(documents).values(newDoc).run();
+      await db.insert(documents).values(newDoc);
 
-      const createdDoc = db.select().from(documents).where(eq(documents.id, newDoc.id)).get();
+      const results = await db.select().from(documents).where(eq(documents.id, newDoc.id));
+      const createdDoc = results[0];
 
       return reply.status(201).send({
         document: {
@@ -98,7 +99,8 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params;
 
       // Verify the document belongs to the user
-      const doc = db.select().from(documents).where(eq(documents.id, id)).get();
+      const results = await db.select().from(documents).where(eq(documents.id, id));
+      const doc = results[0];
 
       if (!doc) {
         return reply.status(404).send({ error: 'Document not found' });
@@ -108,7 +110,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: 'Not authorized to delete this document' });
       }
 
-      db.delete(documents).where(eq(documents.id, id)).run();
+      await db.delete(documents).where(eq(documents.id, id));
 
       return { success: true };
     } catch (error) {

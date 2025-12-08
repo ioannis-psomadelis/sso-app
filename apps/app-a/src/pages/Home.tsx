@@ -13,15 +13,15 @@ import {
   Spinner,
   Input,
   toast,
+  GoogleLogo,
 } from '@repo/ui';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, IDP_URL, OTHER_APP_URL } from '../context/AuthContext';
 import { createApiClient, type Task } from '@repo/auth-client';
 
-const IDP_URL = 'http://localhost:3000';
 const apiClient = createApiClient(IDP_URL);
 
 export function Home() {
-  const { user, isAuthenticated, isLoading, login, loginWithKeycloak, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, login, loginWithGoogle, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Task management state
@@ -117,17 +117,19 @@ export function Home() {
           <CardContent className="space-y-3">
             <Button
               onClick={login}
-              className="w-full"
-              variant="default"
+              className="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white"
+              aria-label="Sign in with Custom SSO"
             >
-              Sign in with Local IdP
+              Custom SSO
             </Button>
             <Button
-              onClick={loginWithKeycloak}
+              onClick={loginWithGoogle}
               className="w-full"
               variant="outline"
+              aria-label="Sign in with Google"
             >
-              Sign in with Keycloak
+              <GoogleLogo className="w-5 h-5 mr-2" />
+              Sign in with Google
             </Button>
             <p className="text-xs text-center text-muted-foreground pt-2">
               Watch the debug panel to see the OAuth 2.0 + PKCE flow
@@ -147,10 +149,10 @@ export function Home() {
           <p className="text-muted-foreground">{user?.email}</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/settings" className={buttonVariants({ variant: 'ghost' })}>
+          <Link to="/settings" className={buttonVariants({ variant: 'ghost' })} aria-label="Go to settings">
             Settings
           </Link>
-          <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
+          <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut} aria-label="Sign out">
             {isLoggingOut && <Spinner />}
             {isLoggingOut ? 'Signing out' : 'Sign out'}
           </Button>
@@ -199,7 +201,7 @@ export function Home() {
               disabled={isCreatingTask}
               className="flex-1"
             />
-            <Button type="submit" disabled={isCreatingTask || !newTaskText.trim()} size="sm">
+            <Button type="submit" disabled={isCreatingTask || !newTaskText.trim()} size="sm" aria-label="Add new task">
               {isCreatingTask && <Spinner />}
               {isCreatingTask ? 'Adding...' : 'Add'}
             </Button>
@@ -240,6 +242,7 @@ export function Home() {
                     size="sm"
                     onClick={() => handleDeleteTask(task.id)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={`Delete task: ${task.text}`}
                   >
                     Delete
                   </Button>
@@ -261,10 +264,11 @@ export function Home() {
               </p>
             </div>
             <a
-              href="http://localhost:3002"
+              href={OTHER_APP_URL}
               target="_blank"
               rel="noopener noreferrer"
               className={buttonVariants()}
+              aria-label="Open DocVault application in new tab"
             >
               Open DocVault →
             </a>

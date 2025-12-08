@@ -14,7 +14,7 @@ export const logoutRoute: FastifyPluginAsync = async (fastify) => {
     }
 
     if (refresh_token) {
-      db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token)).run();
+      await db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token));
     }
 
     return { success: true };

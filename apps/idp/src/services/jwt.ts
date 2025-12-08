@@ -1,8 +1,15 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { User } from '@repo/db';
 
-const JWT_SECRET = new TextEncoder().encode('your-256-bit-secret-key-here');
-const ISSUER = 'http://localhost:3000';
+// Warn if using default JWT_SECRET in production
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('WARNING: Using default JWT_SECRET in production is insecure!');
+}
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production'
+);
+const ISSUER = process.env.IDP_URL || 'http://localhost:3000';
 
 export async function generateAccessToken(user: User, clientId: string, scope: string): Promise<string> {
   return new SignJWT({

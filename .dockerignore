@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs (we rebuild in Docker)
+dist
+**/dist
+
+# Development files
+.git
+.gitignore
+*.md
+!README.md
+.vscode
+.idea
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Test files
+**/*.test.*
+**/*.spec.*
+__tests__
+coverage
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Railway/Docker config in root (used differently per service)
+railway.json
+
+# Docs
+docs
+
+# Scripts
+scripts

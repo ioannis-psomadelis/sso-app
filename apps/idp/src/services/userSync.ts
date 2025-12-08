@@ -13,7 +13,8 @@ export async function ensureUserExists(tokenResult: TokenVerificationResult): Pr
   const { sub, email, name, provider } = tokenResult;
 
   // Check if user already exists
-  const existingUser = db.select().from(users).where(eq(users.id, sub)).get();
+  const results = await db.select().from(users).where(eq(users.id, sub));
+  const existingUser = results[0];
 
   if (existingUser) {
     return existingUser.id;
@@ -21,12 +22,12 @@ export async function ensureUserExists(tokenResult: TokenVerificationResult): Pr
 
   // For external providers, create a placeholder user
   if (provider !== 'local') {
-    db.insert(users).values({
+    await db.insert(users).values({
       id: sub,
       email: email || `${sub}@${provider}.oauth`,
       passwordHash: 'EXTERNAL_OAUTH_USER',
       name: name || `${provider} User`,
-    }).run();
+    });
     return sub;
   }
 

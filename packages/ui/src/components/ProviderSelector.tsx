@@ -3,7 +3,7 @@ import { Button } from './Button';
 import { Spinner } from './PageLoader';
 
 // Official Google "G" logo (colorful) - per Google branding guidelines
-function GoogleLogo({ className }: { className?: string }) {
+export function GoogleLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <path

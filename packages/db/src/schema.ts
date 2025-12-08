@@ -1,28 +1,28 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 
-export const users = sqliteTable('users', {
+export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const sessions = sqliteTable('sessions', {
+export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const oauthClients = sqliteTable('oauth_clients', {
+export const oauthClients = pgTable('oauth_clients', {
   id: text('id').primaryKey(),
   secret: text('secret').notNull(),
   name: text('name').notNull(),
   redirectUris: text('redirect_uris').notNull(), // JSON array
 });
 
-export const authorizationCodes = sqliteTable('authorization_codes', {
+export const authorizationCodes = pgTable('authorization_codes', {
   code: text('code').primaryKey(),
   clientId: text('client_id').notNull().references(() => oauthClients.id),
   userId: text('user_id').notNull().references(() => users.id),
@@ -30,41 +30,41 @@ export const authorizationCodes = sqliteTable('authorization_codes', {
   codeChallengeMethod: text('code_challenge_method').notNull(),
   scope: text('scope').notNull(),
   redirectUri: text('redirect_uri').notNull(),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
 });
 
-export const refreshTokens = sqliteTable('refresh_tokens', {
+export const refreshTokens = pgTable('refresh_tokens', {
   token: text('token').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   clientId: text('client_id').notNull().references(() => oauthClients.id),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
 });
 
-export const tasks = sqliteTable('tasks', {
+export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   text: text('text').notNull(),
-  completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  completed: boolean('completed').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const documents = sqliteTable('documents', {
+export const documents = pgTable('documents', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   name: text('name').notNull(),
   size: integer('size').notNull(),
   mimeType: text('mime_type').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-// Links external Keycloak users to local users
-export const federatedIdentities = sqliteTable('federated_identities', {
+// Links external IdP users to local users
+export const federatedIdentities = pgTable('federated_identities', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
-  provider: text('provider').notNull(), // 'keycloak'
+  provider: text('provider').notNull(), // 'google'
   providerSub: text('provider_sub').notNull(),
   email: text('email'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 // Type exports

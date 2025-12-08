@@ -42,7 +42,7 @@ export function Callback() {
           setStatus('success');
           setTimeout(() => navigate('/'), 500);
         })
-        .catch((e) => {
+        .catch((e: Error) => {
           setError(e.message);
           setStatus('error');
           isProcessingRef.current = false;

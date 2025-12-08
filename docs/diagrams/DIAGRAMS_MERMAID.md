@@ -18,25 +18,25 @@ flowchart TB
 
     subgraph IDP_LAYER["IDENTITY LAYER"]
         IDP["Local IdP<br/><b>Auth Broker</b><br/>localhost:3000"]
-        DB[("SQLite<br/>Users | Sessions<br/>Tokens")]
+        DB[("PostgreSQL<br/>Users | Sessions<br/>Tokens")]
     end
 
     subgraph EXTERNAL["EXTERNAL"]
-        KC["Keycloak<br/><b>University IdP</b>"]
+        GG["Google<br/><b>OAuth 2.0</b>"]
     end
 
     U ==>|"visits"| A
     U ==>|"visits"| B
     A <-->|"OAuth 2.0<br/>+ PKCE"| IDP
     B <-->|"OAuth 2.0<br/>+ PKCE"| IDP
-    IDP <-->|"Federation"| KC
+    IDP <-->|"Federation"| GG
     IDP <-->|"Store"| DB
 
     style U fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#1976D2
     style A fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#1B5E20
     style B fill:#FFF3E0,stroke:#F57C00,stroke-width:3px,color:#E65100
     style IDP fill:#F3E5F5,stroke:#7B1FA2,stroke-width:3px,color:#4A148C
-    style KC fill:#E3F2FD,stroke:#1565C0,stroke-width:3px,color:#0D47A1
+    style GG fill:#E3F2FD,stroke:#1565C0,stroke-width:3px,color:#0D47A1
     style DB fill:#ECEFF1,stroke:#546E7A,stroke-width:2px,color:#37474F
 ```
 
@@ -128,7 +128,7 @@ sequenceDiagram
 
 ---
 
-## 4. Keycloak Federation (Double PKCE)
+## 4. Google Federation (Double PKCE)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#e8f5e9', 'actorBorder': '#2e7d32' }}}%%
@@ -138,32 +138,32 @@ sequenceDiagram
     participant U as Browser
     participant A as App
     participant IDP as Local IdP
-    participant KC as Keycloak
+    participant GG as Google
 
     rect rgb(165, 214, 167)
-        U->>+A: Click "Sign in with Keycloak"
+        U->>+A: Click "Sign in with Google"
         Note over A: Generate PKCE #1<br/>(App - IdP)
         A-->>-U: Redirect
     end
 
     rect rgb(206, 147, 216)
-        U->>+IDP: GET /federated/keycloak/start<br/>PKCE #1 challenge
-        Note over IDP: Validate client<br/>Generate PKCE #2<br/>(IdP - Keycloak)<br/>Store in cookie
-        IDP-->>-U: Redirect to Keycloak
+        U->>+IDP: GET /federated/google/start<br/>PKCE #1 challenge
+        Note over IDP: Validate client<br/>Generate PKCE #2<br/>(IdP - Google)<br/>Store in cookie
+        IDP-->>-U: Redirect to Google
     end
 
     rect rgb(144, 202, 249)
-        U->>+KC: GET /auth + PKCE #2
-        KC-->>U: University Login Page
-        U->>KC: Enter credentials
-        Note over KC: Authenticate
-        KC-->>-U: Redirect + KC code
+        U->>+GG: GET /auth + PKCE #2
+        GG-->>U: Google Login Page
+        U->>GG: Enter credentials
+        Note over GG: Authenticate
+        GG-->>-U: Redirect + Google code
     end
 
     rect rgb(206, 147, 216)
-        U->>+IDP: GET /callback + KC code
-        IDP->>+KC: Exchange code + PKCE #2 verifier
-        KC-->>-IDP: KC Tokens + UserInfo
+        U->>+IDP: GET /callback + Google code
+        IDP->>+GG: Exchange code + PKCE #2 verifier
+        GG-->>-IDP: Google Tokens + UserInfo
         Note over IDP: Create/Link user<br/>Create session<br/>Generate new code
         IDP-->>-U: Redirect to App
     end
@@ -347,8 +347,8 @@ erDiagram
     FEDERATED_IDENTITIES {
         text id PK "id"
         text user_id FK "local user"
-        text provider "keycloak"
-        text provider_sub "KC user id"
+        text provider "google"
+        text provider_sub "Google user id"
         text email "email"
         timestamp created_at "date"
     }
@@ -391,7 +391,110 @@ flowchart TB
 
 ---
 
-## 10. Complete SSO Flow Summary
+## 10. Account Linking (OAuth → Local Password)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'actorTextColor': '#1a1a1a', 'signalTextColor': '#1a1a1a', 'noteTextColor': '#1a1a1a', 'noteBkgColor': '#fff9c4', 'actorBkg': '#e8f5e9', 'actorBorder': '#2e7d32' }}}%%
+sequenceDiagram
+    autonumber
+
+    participant U as User
+    participant APP as App (Settings)
+    participant IDP as IdP API
+
+    rect rgb(144, 202, 249)
+        Note over U: OAuth user (Google)<br/>hasLocalPassword = false
+    end
+
+    rect rgb(165, 214, 167)
+        U->>+APP: Visit Settings
+        APP->>+IDP: GET /api/profile
+        IDP-->>-APP: { hasLocalPassword: false }
+        Note over APP: Show "Set Local Password"<br/>card
+        APP-->>-U: Display form
+    end
+
+    rect rgb(255, 183, 77)
+        U->>+APP: Enter new password
+        APP->>+IDP: PATCH /api/profile<br/>{ newPassword: "xxx" }
+        Note over IDP: OAuth user detected<br/>No currentPassword required<br/>Validate password rules<br/>Hash with bcrypt
+        IDP-->>-APP: Success
+        APP-->>-U: "Password set!"
+    end
+
+    rect rgb(129, 199, 132)
+        Note over U,IDP: User can now login with:<br/>• Google OAuth<br/>• Email + Password
+    end
+```
+
+---
+
+## 11. Profile Management Flow
+
+```mermaid
+flowchart TB
+    subgraph PROFILE["Profile API"]
+        direction TB
+        GET["GET /api/profile"]
+        PATCH["PATCH /api/profile"]
+    end
+
+    subgraph AUTH["Authentication"]
+        TOKEN{"Valid<br/>Access Token?"}
+        DENY["401 Unauthorized"]
+    end
+
+    subgraph UPDATE["Update Types"]
+        NAME["Update Name"]
+        EMAIL["Update Email"]
+        PWD["Change Password"]
+        SET_PWD["Set Password<br/>(OAuth users)"]
+    end
+
+    subgraph VALIDATION["Validation"]
+        CHK_EMAIL{"Email<br/>available?"}
+        CHK_PWD{"Current password<br/>correct?"}
+        CHK_OAUTH{"OAuth-only<br/>user?"}
+        VAL_PWD{"Password rules<br/>valid?"}
+    end
+
+    subgraph RESULT["Result"]
+        OK["200 Updated"]
+        ERR_409["409 Email taken"]
+        ERR_401["401 Wrong password"]
+        ERR_400["400 Invalid password"]
+    end
+
+    GET --> TOKEN
+    PATCH --> TOKEN
+    TOKEN -->|No| DENY
+    TOKEN -->|Yes| UPDATE
+
+    NAME --> OK
+    EMAIL --> CHK_EMAIL
+    CHK_EMAIL -->|No| ERR_409
+    CHK_EMAIL -->|Yes| OK
+
+    PWD --> CHK_OAUTH
+    CHK_OAUTH -->|No| CHK_PWD
+    CHK_OAUTH -->|Yes| SET_PWD
+    CHK_PWD -->|No| ERR_401
+    CHK_PWD -->|Yes| VAL_PWD
+    SET_PWD --> VAL_PWD
+    VAL_PWD -->|No| ERR_400
+    VAL_PWD -->|Yes| OK
+
+    style GET fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#0D47A1
+    style PATCH fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#E65100
+    style OK fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
+    style ERR_409 fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#B71C1C
+    style ERR_401 fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#B71C1C
+    style ERR_400 fill:#FFCDD2,stroke:#C62828,stroke-width:2px,color:#B71C1C
+```
+
+---
+
+## 12. Complete SSO Flow Summary
 
 ```mermaid
 flowchart TB

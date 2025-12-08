@@ -1,15 +1,22 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
 import * as schema from './schema.js';
-import { mkdirSync } from 'fs';
-import { dirname } from 'path';
 
-const dbPath = new URL('../data/auth.db', import.meta.url).pathname;
+const { Pool } = pg;
 
-// Ensure data directory exists
-mkdirSync(dirname(dbPath), { recursive: true });
+// Use DATABASE_URL for PostgreSQL connection
+const connectionString = process.env.DATABASE_URL;
 
-const sqlite = new Database(dbPath);
-export const db = drizzle(sqlite, { schema });
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is required');
+}
+
+const pool = new Pool({
+  connectionString,
+  // Railway provides SSL-enabled PostgreSQL
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+export const db = drizzle(pool, { schema });
 
 export * from './schema.js';

@@ -15,7 +15,7 @@
 | Αρχιτεκτονική SSO | `01-sso-architecture.excalidraw` |
 | Πρώτη Σύνδεση (Local IdP) | `02-first-login-flow.excalidraw` |
 | SSO Auto-Login (App B) | `03-sso-auto-login.excalidraw` |
-| Keycloak Federation | `04-keycloak-federation.excalidraw` |
+| Google Federation | `04-google-federation.excalidraw` |
 
 ---
 
@@ -35,8 +35,8 @@
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
              ┌──────────┐    ┌──────────┐    ┌──────────────┐
-             │  App A   │    │  App B   │    │  Keycloak    │
-             │ TaskFlow │    │ DocVault │    │ (University) │
+             │  App A   │    │  App B   │    │    Google    │
+             │ TaskFlow │    │ DocVault │    │   OAuth 2.0  │
              │ :3001    │    │ :3002    │    │              │
              └────┬─────┘    └────┬─────┘    └──────┬───────┘
                   │               │                  │
@@ -50,7 +50,7 @@
                                   │
                                   ▼
                         ┌─────────────────┐
-                        │    SQLite DB    │
+                        │  PostgreSQL DB  │
                         │  (Users, Tokens │
                         │   Sessions)     │
                         └─────────────────┘
@@ -189,49 +189,49 @@
 
 ---
 
-## Ροή 3: Federation με Keycloak (University)
+## Ροή 3: Federation με Google OAuth 2.0
 
 ```
 ┌────────┐      ┌────────┐      ┌────────┐      ┌───────────┐
-│ User   │      │ App A  │      │  IdP   │      │ Keycloak  │
-│Browser │      │:3001   │      │ :3000  │      │ University│
+│ User   │      │ App A  │      │  IdP   │      │  Google   │
+│Browser │      │:3001   │      │ :3000  │      │  OAuth    │
 └───┬────┘      └───┬────┘      └───┬────┘      └─────┬─────┘
     │               │               │                  │
     │ 1. Click      │               │                  │
-    │ "Keycloak"    │               │                  │
+    │ "Google"      │               │                  │
     │───────────────>               │                  │
     │               │               │                  │
     │ 2. Redirect   │               │                  │
     │    με PKCE    │               │                  │
     │<──────────────│               │                  │
     │               │               │                  │
-    │ 3. GET /auth/federated/keycloak/start           │
+    │ 3. GET /auth/federated/google/start             │
     │───────────────────────────────>                  │
     │               │               │                  │
     │               │  4. IdP generates               │
     │               │     νέο PKCE για                │
-    │               │     Keycloak                    │
+    │               │     Google                      │
     │               │               │                  │
-    │ 5. Redirect to Keycloak                         │
+    │ 5. Redirect to Google                           │
     │<──────────────────────────────│                  │
     │               │               │                  │
-    │ 6. GET /auth (Keycloak)                         │
+    │ 6. GET /auth (Google)                           │
     │─────────────────────────────────────────────────>
     │               │               │                  │
-    │ 7. University Login Page                        │
+    │ 7. Google Login Page                            │
     │<─────────────────────────────────────────────────
     │               │               │                  │
-    │ 8. Enter university credentials                 │
+    │ 8. Enter Google credentials                     │
     │─────────────────────────────────────────────────>
     │               │               │                  │
     │ 9. Redirect με code                             │
     │<─────────────────────────────────────────────────
     │               │               │                  │
-    │ 10. GET /auth/federated/keycloak/callback       │
+    │ 10. GET /auth/federated/google/callback         │
     │───────────────────────────────>                  │
     │               │               │                  │
     │               │  11. Exchange code              │
-    │               │      με Keycloak                │
+    │               │      με Google                  │
     │               │───────────────────────────────────>
     │               │               │                  │
     │               │  12. Tokens + UserInfo          │
@@ -255,11 +255,11 @@
 
 1. **Double PKCE**:
    - App → IdP: Πρώτο PKCE ζεύγος
-   - IdP → Keycloak: Δεύτερο PKCE ζεύγος
+   - IdP → Google: Δεύτερο PKCE ζεύγος
 
-2. **User Linking**: Ο IdP δημιουργεί/συνδέει τον Keycloak χρήστη με τοπικό account
+2. **User Linking**: Ο IdP δημιουργεί/συνδέει τον Google χρήστη με τοπικό account
 
-3. **Session Creation**: Μετά το Keycloak login, ο IdP δημιουργεί δικό του session
+3. **Session Creation**: Μετά το Google login, ο IdP δημιουργεί δικό του session
 
 ---
 
@@ -375,4 +375,5 @@ App verifies: response.state === stored_state
 | **PKCE** | Προστασία από υποκλοπή authorization code |
 | **State** | Προστασία από CSRF επιθέσεις |
 | **Token Refresh** | Αυτόματη ανανέωση χωρίς re-login |
-| **Federation** | Σύνδεση μέσω εξωτερικού provider (Keycloak) |
+| **Federation** | Σύνδεση μέσω εξωτερικού provider (Google OAuth 2.0) |
+| **Account Linking** | OAuth χρήστες μπορούν να ορίσουν τοπικό κωδικό |

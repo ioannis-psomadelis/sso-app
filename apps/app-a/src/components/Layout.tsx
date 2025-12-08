@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { buttonVariants, Separator, ThemeToggle, Toaster, AuthOverlay } from '@repo/ui';
 import { useDebug } from '../context/DebugContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, OTHER_APP_URL } from '../context/AuthContext';
 import { DebugSidebar } from './DebugSidebar';
 
 interface LayoutProps {
@@ -30,7 +30,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <div className="flex items-center gap-1">
             <a
-              href="http://localhost:3002"
+              href={OTHER_APP_URL}
               className={buttonVariants({ variant: "ghost", size: "sm", className: "text-muted-foreground" })}
             >
               Open DocVault →

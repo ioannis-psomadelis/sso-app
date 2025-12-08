@@ -33,13 +33,14 @@ async function handleAuthorizationCode(body: Record<string, string>, reply: any)
   }
 
   // Find and validate auth code
-  const authCode = db.select().from(authorizationCodes).where(eq(authorizationCodes.code, code)).get();
+  const authCodes = await db.select().from(authorizationCodes).where(eq(authorizationCodes.code, code));
+  const authCode = authCodes[0];
   if (!authCode) {
     return reply.status(400).send({ error: 'invalid_grant', error_description: 'Invalid authorization code' });
   }
 
   if (authCode.expiresAt < new Date()) {
-    db.delete(authorizationCodes).where(eq(authorizationCodes.code, code)).run();
+    await db.delete(authorizationCodes).where(eq(authorizationCodes.code, code));
     return reply.status(400).send({ error: 'invalid_grant', error_description: 'Authorization code expired' });
   }
 
@@ -54,10 +55,11 @@ async function handleAuthorizationCode(body: Record<string, string>, reply: any)
   }
 
   // Delete used auth code
-  db.delete(authorizationCodes).where(eq(authorizationCodes.code, code)).run();
+  await db.delete(authorizationCodes).where(eq(authorizationCodes.code, code));
 
   // Get user
-  const user = db.select().from(users).where(eq(users.id, authCode.userId)).get();
+  const userResults = await db.select().from(users).where(eq(users.id, authCode.userId));
+  const user = userResults[0];
   if (!user) {
     return reply.status(400).send({ error: 'invalid_grant' });
   }
@@ -68,12 +70,12 @@ async function handleAuthorizationCode(body: Record<string, string>, reply: any)
   const refreshToken = await generateRefreshToken();
 
   // Store refresh token
-  db.insert(refreshTokens).values({
+  await db.insert(refreshTokens).values({
     token: refreshToken,
     userId: user.id,
     clientId: client_id,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-  }).run();
+  });
 
   return {
     access_token: accessToken,
@@ -91,18 +93,20 @@ async function handleRefreshToken(body: Record<string, string>, reply: any) {
     return reply.status(400).send({ error: 'invalid_request' });
   }
 
-  const storedToken = db.select().from(refreshTokens).where(eq(refreshTokens.token, refresh_token)).get();
+  const storedTokens = await db.select().from(refreshTokens).where(eq(refreshTokens.token, refresh_token));
+  const storedToken = storedTokens[0];
   if (!storedToken || storedToken.clientId !== client_id) {
     return reply.status(400).send({ error: 'invalid_grant' });
   }
 
   if (storedToken.expiresAt < new Date()) {
-    db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token)).run();
+    await db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token));
     return reply.status(400).send({ error: 'invalid_grant', error_description: 'Refresh token expired' });
   }
 
   // Get user
-  const user = db.select().from(users).where(eq(users.id, storedToken.userId)).get();
+  const userResults = await db.select().from(users).where(eq(users.id, storedToken.userId));
+  const user = userResults[0];
   if (!user) {
     return reply.status(400).send({ error: 'invalid_grant' });
   }
@@ -113,13 +117,13 @@ async function handleRefreshToken(body: Record<string, string>, reply: any) {
   const newRefreshToken = await generateRefreshToken();
 
   // Rotate refresh token
-  db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token)).run();
-  db.insert(refreshTokens).values({
+  await db.delete(refreshTokens).where(eq(refreshTokens.token, refresh_token));
+  await db.insert(refreshTokens).values({
     token: newRefreshToken,
     userId: user.id,
     clientId: client_id,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  }).run();
+  });
 
   return {
     access_token: accessToken,

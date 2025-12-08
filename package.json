@@ -6,9 +6,11 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "db:push": "turbo db:push",
-    "db:seed": "turbo db:seed"
+    "db:seed": "turbo db:seed",
+    "db:studio": "pnpm --filter @repo/db db:studio"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "turbo": "^2.6.1",
     "typescript": "^5.9.3"
   },
