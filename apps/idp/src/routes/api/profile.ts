@@ -1,9 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
 import { db, users } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { verifyMultiProviderToken } from '../../services/tokenVerification.js';
-import { ensureUserExists } from '../../services/userSync.js';
+import authMiddleware from '../../middleware/auth.js';
 import bcrypt from 'bcrypt';
+import { OAUTH_USER_NO_PASSWORD } from '../../constants.js';
 
 function isValidEmail(email: string): boolean {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,30 +27,13 @@ function validatePassword(password: string): { valid: boolean; message?: string 
 }
 
 export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
-  // Middleware to verify access token from any supported provider
-  const verifyToken = async (request: any, reply: any) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.slice(7);
-
-    try {
-      const result = await verifyMultiProviderToken(token);
-      // Ensure user exists in local DB (creates placeholder for OAuth users)
-      await ensureUserExists(result);
-      request.userId = result.sub;
-      request.provider = result.provider;
-    } catch (error) {
-      fastify.log.error({ err: error }, 'Token verification failed');
-      return reply.status(401).send({ error: 'invalid_token', message: 'Invalid or expired access token' });
-    }
-  };
+  // Register auth middleware for this route
+  await fastify.register(authMiddleware);
 
   // GET /api/profile - Returns the current user's profile
-  fastify.get('/api/profile', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.get('/api/profile', async (request, reply) => {
+    // userId is guaranteed to be set by auth middleware
+    const userId = request.userId!;
 
     try {
       const results = await db
@@ -64,7 +47,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       // Check if user has a local password (not OAuth-only)
-      const hasLocalPassword = user.passwordHash !== 'OAUTH_USER_NO_LOCAL_PASSWORD';
+      const hasLocalPassword = user.passwordHash !== OAUTH_USER_NO_PASSWORD;
 
       return {
         user: {
@@ -82,8 +65,8 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // PATCH /api/profile - Updates the current user's profile
-  fastify.patch('/api/profile', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.patch('/api/profile', async (request, reply) => {
+    const userId = request.userId!;
     const body = request.body as {
       name?: string;
       email?: string;
@@ -114,7 +97,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
 
       // Check if trying to change password
       if (body.newPassword) {
-        const isOAuthOnlyUser = user.passwordHash === 'OAUTH_USER_NO_LOCAL_PASSWORD';
+        const isOAuthOnlyUser = user.passwordHash === OAUTH_USER_NO_PASSWORD;
 
         // OAuth-only users can set a password without providing current password
         // Local users must provide their current password

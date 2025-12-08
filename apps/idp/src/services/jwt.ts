@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { User } from '@repo/db';
+import { ACCESS_TOKEN_EXPIRY, ID_TOKEN_EXPIRY } from '../constants.js';
 
 // Warn if using default JWT_SECRET in production
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -20,7 +21,7 @@ export async function generateAccessToken(user: User, clientId: string, scope: s
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setIssuer(ISSUER)
-    .setExpirationTime('2m') // 2 minutes for educational purposes (was 15m)
+    .setExpirationTime(ACCESS_TOKEN_EXPIRY)
     .sign(JWT_SECRET);
 }
 
@@ -34,7 +35,7 @@ export async function generateIdToken(user: User, clientId: string): Promise<str
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(clientId)
-    .setExpirationTime('1h')
+    .setExpirationTime(ID_TOKEN_EXPIRY)
     .sign(JWT_SECRET);
 }
 

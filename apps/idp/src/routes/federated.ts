@@ -4,6 +4,12 @@ import { eq, and } from 'drizzle-orm';
 import { createSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
+import {
+  SESSION_DURATION_SECONDS,
+  AUTH_CODE_EXPIRY_MS,
+  FEDERATION_STATE_EXPIRY_SECONDS,
+  OAUTH_USER_NO_PASSWORD
+} from '../constants.js';
 
 const IDP_URL = process.env.IDP_URL || 'http://localhost:3000';
 
@@ -101,7 +107,7 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 600,
+      maxAge: FEDERATION_STATE_EXPIRY_SECONDS,
     });
 
     if (provider !== 'google') {
@@ -197,7 +203,7 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
         await db.insert(users).values({
           id: userId,
           email: userInfo.email,
-          passwordHash: 'OAUTH_USER_NO_LOCAL_PASSWORD',
+          passwordHash: OAUTH_USER_NO_PASSWORD,
           name,
           createdAt: new Date(),
         });
@@ -230,7 +236,7 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 24 * 60 * 60,
+        maxAge: SESSION_DURATION_SECONDS,
       });
 
       const authCode = uuid();
@@ -242,7 +248,7 @@ export const federatedRoute: FastifyPluginAsync = async (fastify) => {
         codeChallengeMethod: federationState.code_challenge_method,
         scope: federationState.scope,
         redirectUri: federationState.redirect_uri,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        expiresAt: new Date(Date.now() + AUTH_CODE_EXPIRY_MS),
       });
 
       const redirectUrl = new URL(federationState.redirect_uri);

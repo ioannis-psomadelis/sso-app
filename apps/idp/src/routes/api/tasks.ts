@@ -1,34 +1,16 @@
 import { FastifyPluginAsync } from 'fastify';
 import { db, tasks, type Task, type NewTask } from '@repo/db';
 import { eq, and } from 'drizzle-orm';
-import { verifyMultiProviderToken } from '../../services/tokenVerification.js';
-import { ensureUserExists } from '../../services/userSync.js';
+import authMiddleware from '../../middleware/auth.js';
 
 export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
-  // Middleware to verify access token from any supported provider
-  const verifyToken = async (request: any, reply: any) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'unauthorized', message: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.slice(7);
-
-    try {
-      const result = await verifyMultiProviderToken(token);
-      // Ensure user exists in local DB (creates placeholder for OAuth users)
-      await ensureUserExists(result);
-      request.userId = result.sub;
-      request.provider = result.provider;
-    } catch (error) {
-      fastify.log.error({ err: error }, 'Token verification failed');
-      return reply.status(401).send({ error: 'invalid_token', message: 'Invalid or expired access token' });
-    }
-  };
+  // Register auth middleware for this route
+  await fastify.register(authMiddleware);
 
   // GET /api/tasks - Returns tasks for the authenticated user
-  fastify.get('/api/tasks', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.get('/api/tasks', async (request, reply) => {
+    // userId is guaranteed to be set by auth middleware
+    const userId = request.userId!;
 
     try {
       const userTasks = await db
@@ -45,8 +27,8 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/tasks - Creates a new task
-  fastify.post('/api/tasks', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.post('/api/tasks', async (request, reply) => {
+    const userId = request.userId!;
     const body = request.body as { text: string };
 
     if (!body.text || typeof body.text !== 'string' || body.text.trim().length === 0) {
@@ -75,8 +57,8 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // PATCH /api/tasks/:id - Toggles task completion
-  fastify.patch('/api/tasks/:id', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.patch('/api/tasks/:id', async (request, reply) => {
+    const userId = request.userId!;
     const { id } = request.params as { id: string };
 
     try {
@@ -107,8 +89,8 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/tasks/:id - Deletes a task
-  fastify.delete('/api/tasks/:id', { preHandler: verifyToken }, async (request, reply) => {
-    const userId = (request as any).userId;
+  fastify.delete('/api/tasks/:id', async (request, reply) => {
+    const userId = request.userId!;
     const { id } = request.params as { id: string };
 
     try {

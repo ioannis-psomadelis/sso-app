@@ -10,6 +10,7 @@ export type DebugEventType =
   | 'token_refresh_start'
   | 'token_refresh_success'
   | 'token_refresh_error'
+  | 'token_refresh_skipped'
   | 'session_check'
   | 'logout';
 

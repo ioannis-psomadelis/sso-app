@@ -3,6 +3,7 @@ import { db, oauthClients, authorizationCodes } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { getSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
+import { AUTH_CODE_EXPIRY_MS } from '../constants.js';
 
 const IDP_URL = process.env.IDP_URL || 'http://localhost:3000';
 
@@ -55,7 +56,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
         codeChallengeMethod: code_challenge_method,
         scope: scope || 'openid profile email',
         redirectUri: redirect_uri,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min
+        expiresAt: new Date(Date.now() + AUTH_CODE_EXPIRY_MS),
       });
 
       const redirectUrl = new URL(redirect_uri);

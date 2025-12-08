@@ -3,6 +3,7 @@ import { db, users, authorizationCodes, refreshTokens } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { verifyPKCE } from '../services/pkce.js';
 import { generateAccessToken, generateIdToken, generateRefreshToken } from '../services/jwt.js';
+import { REFRESH_TOKEN_EXPIRY_MS, ACCESS_TOKEN_EXPIRY_SECONDS } from '../constants.js';
 
 export const tokenRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post('/token', async (request, reply) => {
@@ -74,13 +75,13 @@ async function handleAuthorizationCode(body: Record<string, string>, reply: any)
     token: refreshToken,
     userId: user.id,
     clientId: client_id,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
   });
 
   return {
     access_token: accessToken,
     token_type: 'Bearer',
-    expires_in: 120, // 2 minutes for educational purposes
+    expires_in: ACCESS_TOKEN_EXPIRY_SECONDS,
     refresh_token: refreshToken,
     id_token: idToken,
   };
@@ -122,13 +123,13 @@ async function handleRefreshToken(body: Record<string, string>, reply: any) {
     token: newRefreshToken,
     userId: user.id,
     clientId: client_id,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
   });
 
   return {
     access_token: accessToken,
     token_type: 'Bearer',
-    expires_in: 120, // 2 minutes for educational purposes
+    expires_in: ACCESS_TOKEN_EXPIRY_SECONDS,
     refresh_token: newRefreshToken,
     id_token: idToken,
   };

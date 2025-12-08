@@ -92,21 +92,60 @@ They can set a local password via Settings to enable both login methods.
 This demonstrates the "account linking" pattern for federated identity.
 
 ### Token Configuration
-- Access Token: 2 minutes (short for demo purposes)
+- Access Token: 2 minutes (short for demo purposes - production should use 15-60 minutes)
 - ID Token: 1 hour
 - Refresh Token: 7 days
 - JWT signed with HS256
+
+### Security Design Decisions
+
+**Public Client Architecture:**
+- OAuth clients are treated as public clients (no client secret required)
+- PKCE (Proof Key for Code Exchange) is mandatory for all authorization flows
+- This is appropriate for SPAs where secrets cannot be safely stored
+- PKCE provides protection against authorization code interception attacks
+
+**Token Security:**
+- Short access token lifetime (2 minutes in demo) demonstrates token rotation best practices
+- Refresh tokens enable seamless UX while maintaining security through token expiration
+- In production, access tokens should be 15-60 minutes depending on security requirements
+
+**External IdP Federation:**
+- Google OAuth 2.0 integration available
+- Federated identities support account linking pattern
 
 ## Key Files
 
 - `apps/idp/src/services/jwt.ts` - Token generation/verification
 - `apps/idp/src/services/pkce.ts` - PKCE validation
 - `apps/idp/src/services/session.ts` - SSO session management
+- `apps/idp/src/middleware/auth.ts` - Authentication middleware
+- `apps/idp/src/constants.ts` - Configuration constants
 - `packages/auth-client/src/oauth.ts` - Client OAuth helpers
 - `packages/auth-client/src/pkce.ts` - PKCE generation
 - `apps/app-*/src/context/AuthContext.tsx` - React auth state
 - `apps/app-*/src/pages/Callback.tsx` - OAuth callback handler
 - `apps/app-*/src/pages/Settings.tsx` - Profile editing & password management
+
+## Environment Variables
+
+### IdP Required Variables
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET` - Secret for JWT token signing (HS256)
+- `COOKIE_SECRET` - Secret for session cookie encryption
+- `IDP_URL` - IdP base URL (e.g., http://localhost:3000)
+- `APP_A_URL` - TaskFlow client URL
+- `APP_B_URL` - DocVault client URL
+
+### IdP Optional Variables
+- `CORS_ORIGINS` - Comma-separated list of allowed origins (required in production, defaults to APP_A_URL and APP_B_URL in development)
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID for Google Sign-In
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+
+### Client App Variables (Vite)
+- `VITE_IDP_URL` - IdP URL for OAuth flows
+- `VITE_APP_URL` - Current app's URL
+- `VITE_OTHER_APP_URL` - Other app's URL (for cross-app SSO demo)
 
 ## Railway Deployment
 
@@ -135,6 +174,7 @@ NODE_ENV=production
 IDP_URL=https://idp-production-628d.up.railway.app
 APP_A_URL=https://app-a-production-f5e2.up.railway.app
 APP_B_URL=https://app-b-production-3770.up.railway.app
+CORS_ORIGINS=https://app-a-production-f5e2.up.railway.app,https://app-b-production-3770.up.railway.app
 ```
 
 **App-A Service:**

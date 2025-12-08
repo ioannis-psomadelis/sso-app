@@ -4,6 +4,16 @@ import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { createSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
+import { SESSION_DURATION_SECONDS, AUTH_CODE_EXPIRY_MS } from '../constants.js';
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 export const loginRoute: FastifyPluginAsync = async (fastify) => {
   // GET /login - Show login form as HTML
@@ -131,12 +141,12 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
     <div class="card-content">
       <div id="error" class="error"></div>
       <form id="loginForm">
-        <input type="hidden" name="client_id" value="${params.client_id || ''}">
-        <input type="hidden" name="redirect_uri" value="${params.redirect_uri || ''}">
-        <input type="hidden" name="scope" value="${params.scope || 'openid profile email'}">
-        <input type="hidden" name="code_challenge" value="${params.code_challenge || ''}">
-        <input type="hidden" name="code_challenge_method" value="${params.code_challenge_method || 'S256'}">
-        <input type="hidden" name="state" value="${params.state || ''}">
+        <input type="hidden" name="client_id" value="${escapeHtml(params.client_id || '')}">
+        <input type="hidden" name="redirect_uri" value="${escapeHtml(params.redirect_uri || '')}">
+        <input type="hidden" name="scope" value="${escapeHtml(params.scope || 'openid profile email')}">
+        <input type="hidden" name="code_challenge" value="${escapeHtml(params.code_challenge || '')}">
+        <input type="hidden" name="code_challenge_method" value="${escapeHtml(params.code_challenge_method || 'S256')}">
+        <input type="hidden" name="state" value="${escapeHtml(params.state || '')}">
         <div class="form-group">
           <label for="email">Email</label>
           <input type="email" id="email" name="email" value="demo@example.com" required>
@@ -225,7 +235,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 24 * 60 * 60, // 24 hours
+      maxAge: SESSION_DURATION_SECONDS,
     });
 
     // Generate auth code
@@ -238,7 +248,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       codeChallengeMethod: code_challenge_method,
       scope: scope || 'openid profile email',
       redirectUri: redirect_uri,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      expiresAt: new Date(Date.now() + AUTH_CODE_EXPIRY_MS),
     });
 
     const redirectUrl = new URL(redirect_uri);

@@ -1,9 +1,10 @@
-// User sync service for Keycloak federation
-// Auto-creates local user records for Keycloak users
+// User sync service for OAuth federation
+// Auto-creates local user records for OAuth users (e.g., Google)
 
 import { db, users } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import type { TokenVerificationResult } from './tokenVerification.js';
+import { OAUTH_USER_NO_PASSWORD } from '../constants.js';
 
 /**
  * Ensures a user exists in the local database
@@ -20,12 +21,12 @@ export async function ensureUserExists(tokenResult: TokenVerificationResult): Pr
     return existingUser.id;
   }
 
-  // For external providers, create a placeholder user
+  // For external providers (Google), create a placeholder user
   if (provider !== 'local') {
     await db.insert(users).values({
       id: sub,
       email: email || `${sub}@${provider}.oauth`,
-      passwordHash: 'EXTERNAL_OAUTH_USER',
+      passwordHash: OAUTH_USER_NO_PASSWORD,
       name: name || `${provider} User`,
     });
     return sub;

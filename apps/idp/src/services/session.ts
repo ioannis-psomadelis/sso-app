@@ -1,12 +1,11 @@
 import { db, sessions } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+import { SESSION_DURATION_MS } from '../constants.js';
 
 export async function createSession(userId: string): Promise<string> {
   const sessionId = uuid();
-  const expiresAt = new Date(Date.now() + SESSION_DURATION);
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
   await db.insert(sessions).values({
     id: sessionId,

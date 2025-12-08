@@ -51,7 +51,6 @@ export function ProviderSelector({
   className,
 }: ProviderSelectorProps) {
   // Find providers by type
-  const keycloak = providers.find(p => p.id === 'keycloak');
   const google = providers.find(p => p.id === 'google');
   const local = providers.find(p => p.id === 'local');
 
@@ -68,7 +67,6 @@ export function ProviderSelector({
           'justify-center gap-3 h-11 font-medium border',
           compact ? 'flex-1' : 'w-full',
           provider.id === 'local' && 'bg-primary hover:bg-primary/80 text-primary-foreground border-primary',
-          provider.id === 'keycloak' && 'bg-accent hover:bg-accent/80 text-accent-foreground border-accent',
           isGoogle && 'bg-card hover:bg-muted text-foreground border-border shadow-xs',
           provider.disabled && 'opacity-50'
         )}
@@ -94,13 +92,7 @@ export function ProviderSelector({
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      {/* University SSO - Full width at top */}
-      {keycloak && renderButton(keycloak)}
-
-      {/* Divider */}
-      <ProviderDivider text="or" />
-
-      {/* Bottom row - Google and Local side by side */}
+      {/* Google and Local side by side */}
       <div className="flex gap-2">
         {google && renderButton(google, true)}
         {local && renderButton(local, true)}

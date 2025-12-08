@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   getStoredTokens,
   storeTokens,
@@ -67,6 +67,7 @@ export function createAuthProvider(config: AuthConfig) {
     const [decodedTokens, setDecodedTokens] = useState<DecodedTokens>({ accessToken: null, idToken: null });
     const [accessTokenExpiry, setAccessTokenExpiry] = useState<Date | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const isRefreshingRef = useRef(false);
 
     useEffect(() => {
       const checkSession = async () => {
@@ -113,69 +114,79 @@ export function createAuthProvider(config: AuthConfig) {
 
     useEffect(() => {
       const checkAndRefreshToken = async () => {
-        if (!tokens.accessToken || !tokens.refreshToken) return;
-
-        let isExpired = false;
-        let secondsLeft: number | null = null;
-
-        try {
-          const decoded = decodeToken(tokens.accessToken);
-          const exp = decoded.payload.exp as number;
-          const expiry = new Date(exp * 1000);
-          secondsLeft = Math.floor((expiry.getTime() - Date.now()) / 1000);
-          isExpired = secondsLeft <= 0;
-        } catch (e) {
-          isExpired = true;
-        }
-
-        if (isExpired) {
-          debugEmitter.emit('token_refresh_error', 'Access token expired, logging out');
-          await logout();
+        if (isRefreshingRef.current) {
+          debugEmitter.emit('token_refresh_skipped', 'Refresh already in progress');
           return;
         }
 
-        if (secondsLeft !== null && secondsLeft <= 60 && secondsLeft > 0) {
-          debugEmitter.emit('token_refresh_start', `Token expiring in ${secondsLeft}s, refreshing...`);
+        isRefreshingRef.current = true;
+        try {
+          if (!tokens.accessToken || !tokens.refreshToken) return;
+
+          let isExpired = false;
+          let secondsLeft: number | null = null;
 
           try {
-            const response = await fetch(`${IDP_URL}/token`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                grant_type: 'refresh_token',
-                refresh_token: tokens.refreshToken,
-                client_id: CLIENT_ID,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error('Token refresh failed');
-            }
-
-            const tokenResponse = await response.json();
-
-            const newTokens = {
-              accessToken: tokenResponse.access_token,
-              refreshToken: tokenResponse.refresh_token || tokens.refreshToken,
-              idToken: tokenResponse.id_token || tokens.idToken,
-            };
-
-            storeTokens(newTokens);
-            setTokens(newTokens);
-
-            const decodedAccess = decodeToken(tokenResponse.access_token);
-            const decodedId = tokenResponse.id_token ? decodeToken(tokenResponse.id_token) : null;
-            setDecodedTokens({ accessToken: decodedAccess, idToken: decodedId });
-            const exp = decodedAccess.payload.exp as number;
-            setAccessTokenExpiry(new Date(exp * 1000));
-
-            debugEmitter.emit('token_refresh_success', 'Tokens refreshed successfully');
-            onSuccess('Session refreshed');
-          } catch {
-            debugEmitter.emit('token_refresh_error', 'Token refresh failed');
-            onError('Session expired, please sign in again');
-            await logout();
+            const decoded = decodeToken(tokens.accessToken);
+            const exp = decoded.payload.exp as number;
+            const expiry = new Date(exp * 1000);
+            secondsLeft = Math.floor((expiry.getTime() - Date.now()) / 1000);
+            isExpired = secondsLeft <= 0;
+          } catch (e) {
+            isExpired = true;
           }
+
+          if (isExpired) {
+            debugEmitter.emit('token_refresh_error', 'Access token expired, logging out');
+            await logout();
+            return;
+          }
+
+          if (secondsLeft !== null && secondsLeft <= 60 && secondsLeft > 0) {
+            debugEmitter.emit('token_refresh_start', `Token expiring in ${secondsLeft}s, refreshing...`);
+
+            try {
+              const response = await fetch(`${IDP_URL}/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  grant_type: 'refresh_token',
+                  refresh_token: tokens.refreshToken,
+                  client_id: CLIENT_ID,
+                }),
+              });
+
+              if (!response.ok) {
+                throw new Error('Token refresh failed');
+              }
+
+              const tokenResponse = await response.json();
+
+              const newTokens = {
+                accessToken: tokenResponse.access_token,
+                refreshToken: tokenResponse.refresh_token || tokens.refreshToken,
+                idToken: tokenResponse.id_token || tokens.idToken,
+              };
+
+              storeTokens(newTokens);
+              setTokens(newTokens);
+
+              const decodedAccess = decodeToken(tokenResponse.access_token);
+              const decodedId = tokenResponse.id_token ? decodeToken(tokenResponse.id_token) : null;
+              setDecodedTokens({ accessToken: decodedAccess, idToken: decodedId });
+              const exp = decodedAccess.payload.exp as number;
+              setAccessTokenExpiry(new Date(exp * 1000));
+
+              debugEmitter.emit('token_refresh_success', 'Tokens refreshed successfully');
+              onSuccess('Session refreshed');
+            } catch {
+              debugEmitter.emit('token_refresh_error', 'Token refresh failed');
+              onError('Session expired, please sign in again');
+              await logout();
+            }
+          }
+        } finally {
+          isRefreshingRef.current = false;
         }
       };
 

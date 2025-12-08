@@ -2,9 +2,13 @@ import { db, users, oauthClients, sessions, authorizationCodes, refreshTokens, t
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcrypt';
 
-// Support configurable URLs for production deployment
-const APP_A_URL = process.env.APP_A_URL || 'http://localhost:3001';
-const APP_B_URL = process.env.APP_B_URL || 'http://localhost:3002';
+// Production URLs (Railway)
+const PROD_APP_A_URL = 'https://app-a-production-f5e2.up.railway.app';
+const PROD_APP_B_URL = 'https://app-b-production-3770.up.railway.app';
+
+// Local development URLs
+const LOCAL_APP_A_URL = 'http://localhost:3001';
+const LOCAL_APP_B_URL = 'http://localhost:3002';
 
 async function seed() {
   console.log('Seeding database...');
@@ -28,19 +32,26 @@ async function seed() {
     name: 'John Doe',
   });
 
-  // Create OAuth clients with configurable redirect URIs
+  // Create OAuth clients with BOTH local and production redirect URIs
+  // This allows the same database to work for both environments
   await db.insert(oauthClients).values([
     {
       id: 'app-a',
       secret: await bcrypt.hash('app-a-secret', 12),
       name: 'TaskFlow',
-      redirectUris: JSON.stringify([`${APP_A_URL}/callback`]),
+      redirectUris: JSON.stringify([
+        `${LOCAL_APP_A_URL}/callback`,
+        `${PROD_APP_A_URL}/callback`,
+      ]),
     },
     {
       id: 'app-b',
       secret: await bcrypt.hash('app-b-secret', 12),
       name: 'DocVault',
-      redirectUris: JSON.stringify([`${APP_B_URL}/callback`]),
+      redirectUris: JSON.stringify([
+        `${LOCAL_APP_B_URL}/callback`,
+        `${PROD_APP_B_URL}/callback`,
+      ]),
     },
   ]);
 

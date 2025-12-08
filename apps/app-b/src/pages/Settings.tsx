@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, buttonVariants, Input, Button, Label, toast, Spinner } from '@repo/ui';
 import { useAuth, IDP_URL } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
@@ -18,6 +18,11 @@ export function Settings() {
     currentPassword: '',
     newPassword: '',
   });
+
+  // Sync displayUser with user from context when user changes
+  useEffect(() => {
+    setDisplayUser(user);
+  }, [user]);
 
   // Fetch profile to check if user has local password
   useEffect(() => {
@@ -42,11 +47,6 @@ export function Settings() {
 
   if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/" />;
-
-  // Sync displayUser with user from context when user changes
-  React.useEffect(() => {
-    setDisplayUser(user);
-  }, [user]);
 
   const handleEditClick = () => {
     setFormData({

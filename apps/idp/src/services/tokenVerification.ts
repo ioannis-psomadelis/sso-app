@@ -1,6 +1,6 @@
-// Token verification service - supports local JWT and Keycloak tokens
+// Token verification service - supports local JWT tokens
 
-import { jwtVerify, decodeJwt } from 'jose';
+import { jwtVerify } from 'jose';
 
 // Warn if using default JWT_SECRET in production
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -16,30 +16,17 @@ export interface TokenVerificationResult {
   sub: string;
   email?: string;
   name?: string;
-  provider: 'local' | 'keycloak';
+  provider: 'local' | 'google';
 }
 
-export async function verifyMultiProviderToken(token: string): Promise<TokenVerificationResult> {
-  const decoded = decodeJwt(token);
-
-  // Keycloak tokens have issuer containing 'realms'
-  if (decoded.iss?.toString().includes('realms')) {
-    const exp = decoded.exp as number;
-    if (exp && Date.now() >= exp * 1000) {
-      throw new Error('Token expired');
-    }
-    return {
-      sub: decoded.sub as string,
-      email: decoded.email as string | undefined,
-      name: decoded.name as string | undefined,
-      provider: 'keycloak',
-    };
-  }
-
-  // Local JWT - verify signature
+export async function verifyAccessToken(token: string): Promise<TokenVerificationResult> {
+  // Local JWT - verify signature with shared secret
   const { payload } = await jwtVerify(token, JWT_SECRET, { issuer: LOCAL_ISSUER });
   return {
     sub: payload.sub as string,
     provider: 'local',
   };
 }
+
+// Alias for backward compatibility
+export const verifyMultiProviderToken = verifyAccessToken;

@@ -1,23 +1,17 @@
 import { FastifyPluginAsync } from 'fastify';
 import { db, documents } from '@repo/db';
 import { eq } from 'drizzle-orm';
-import { verifyMultiProviderToken } from '../../services/tokenVerification.js';
-import { ensureUserExists } from '../../services/userSync.js';
+import authMiddleware from '../../middleware/auth.js';
 
 export const documentsRoute: FastifyPluginAsync = async (fastify) => {
+  // Register auth middleware for this route
+  await fastify.register(authMiddleware);
+
   // GET /api/documents - Get all documents for authenticated user
   fastify.get('/api/documents', async (request, reply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.slice(7);
-
     try {
-      const result = await verifyMultiProviderToken(token);
-      await ensureUserExists(result);
-      const userDocs = await db.select().from(documents).where(eq(documents.userId, result.sub));
+      // userId is guaranteed to be set by auth middleware
+      const userDocs = await db.select().from(documents).where(eq(documents.userId, request.userId!));
 
       return {
         documents: userDocs.map((doc) => ({
@@ -29,8 +23,8 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         })),
       };
     } catch (error) {
-      fastify.log.error({ err: error }, 'Token verification failed');
-      return reply.status(401).send({ error: 'Invalid or expired token' });
+      fastify.log.error({ err: error }, 'Failed to fetch documents');
+      return reply.status(500).send({ error: 'internal_error', message: 'Failed to fetch documents' });
     }
   });
 
@@ -38,16 +32,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Body: { name: string; size: number; mimeType: string };
   }>('/api/documents', async (request, reply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.slice(7);
-
     try {
-      const result = await verifyMultiProviderToken(token);
-      await ensureUserExists(result);
       const { name, size, mimeType } = request.body;
 
       if (!name || !size || !mimeType) {
@@ -56,7 +41,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
 
       const newDoc = {
         id: crypto.randomUUID(),
-        userId: result.sub,
+        userId: request.userId!,
         name,
         size,
         mimeType,
@@ -77,8 +62,8 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         },
       });
     } catch (error) {
-      fastify.log.error({ err: error }, 'Token verification failed');
-      return reply.status(401).send({ error: 'Invalid or expired token' });
+      fastify.log.error({ err: error }, 'Failed to create document');
+      return reply.status(500).send({ error: 'internal_error', message: 'Failed to create document' });
     }
   });
 
@@ -86,16 +71,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{
     Params: { id: string };
   }>('/api/documents/:id', async (request, reply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.slice(7);
-
     try {
-      const result = await verifyMultiProviderToken(token);
-      await ensureUserExists(result);
       const { id } = request.params;
 
       // Verify the document belongs to the user
@@ -106,7 +82,7 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Document not found' });
       }
 
-      if (doc.userId !== result.sub) {
+      if (doc.userId !== request.userId!) {
         return reply.status(403).send({ error: 'Not authorized to delete this document' });
       }
 
@@ -114,8 +90,8 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
 
       return { success: true };
     } catch (error) {
-      fastify.log.error({ err: error }, 'Token verification failed');
-      return reply.status(401).send({ error: 'Invalid or expired token' });
+      fastify.log.error({ err: error }, 'Failed to delete document');
+      return reply.status(500).send({ error: 'internal_error', message: 'Failed to delete document' });
     }
   });
 };
