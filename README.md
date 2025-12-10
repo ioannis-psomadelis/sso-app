@@ -22,9 +22,10 @@ A full-stack monorepo implementing Single Sign-On (SSO) using OAuth 2.0 Authoriz
 | Backend | Node.js + Fastify |
 | Frontend | React + Vite |
 | UI Components | Shadcn/ui style |
-| Database | SQLite + Drizzle ORM |
+| Database | PostgreSQL + Drizzle ORM |
 | Auth | OAuth 2.0 + PKCE + JWT |
 | External IdP | Google OAuth 2.0 |
+| Deployment | Railway |
 
 ## Quick Start
 
@@ -46,7 +47,15 @@ pnpm --filter @repo/db db:seed
 pnpm dev
 ```
 
-## Services
+## Live Demo (Railway)
+
+| Service | URL |
+|---------|-----|
+| IdP | https://idp-fed.up.railway.app |
+| TaskFlow | https://a-app.up.railway.app |
+| DocVault | https://b-app.up.railway.app |
+
+## Local Development
 
 | Service | URL | Description |
 |---------|-----|-------------|
@@ -88,7 +97,7 @@ sso-app/
 ├── packages/
 │   ├── ui/            # Shared components + theme
 │   ├── auth-client/   # PKCE + token logic
-│   └── db/            # Drizzle schema + SQLite
+│   └── db/            # Drizzle schema + PostgreSQL
 └── docs/
     └── plans/         # Design documentation
 ```
@@ -114,7 +123,7 @@ sso-app/
 │  6. App exchanges code for tokens (with code_verifier)       │
 │                                                              │
 │  7. IdP validates PKCE and returns:                          │
-│     - Access Token (15 min)                                  │
+│     - Access Token (2 min for demo)                          │
 │     - ID Token (user info)                                   │
 │     - Refresh Token (7 days)                                 │
 │                                                              │
@@ -126,8 +135,8 @@ sso-app/
 
 ## Token Types
 
-### Access Token (15 min expiry)
-Used to access protected resources. Contains:
+### Access Token (2 min expiry for demo)
+Used to access protected resources. Short expiry demonstrates token rotation best practices. Production systems typically use 15-60 minutes. Contains:
 - `sub`: User ID
 - `aud`: Client ID (which app)
 - `scope`: Permissions

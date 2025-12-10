@@ -1,9 +1,12 @@
 import { FastifyPluginAsync } from 'fastify';
-import { db, users } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { db, users, refreshTokens, sessions } from '@repo/db';
+import { eq, and, ne } from 'drizzle-orm';
 import authMiddleware from '../../middleware/auth.js';
 import bcrypt from 'bcrypt';
 import { OAUTH_USER_NO_PASSWORD } from '../../constants.js';
+
+// Centralized bcrypt rounds constant
+const BCRYPT_ROUNDS = 12;
 
 function isValidEmail(email: string): boolean {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,10 +39,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
     const userId = request.userId!;
 
     try {
-      const results = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId));
+      const results = await db.select().from(users).where(eq(users.id, userId));
       const user = results[0];
 
       if (!user) {
@@ -56,7 +56,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
           name: user.name,
           createdAt: user.createdAt,
           hasLocalPassword,
-        }
+        },
       };
     } catch (error) {
       fastify.log.error(error);
@@ -76,10 +76,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
 
     try {
       // Fetch the current user
-      const results = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId));
+      const results = await db.select().from(users).where(eq(users.id, userId));
       const user = results[0];
 
       if (!user) {
@@ -96,6 +93,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       // Check if trying to change password
+      let passwordChanged = false;
       if (body.newPassword) {
         const isOAuthOnlyUser = user.passwordHash === OAUTH_USER_NO_PASSWORD;
 
@@ -103,7 +101,9 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
         // Local users must provide their current password
         if (!isOAuthOnlyUser) {
           if (!body.currentPassword) {
-            return reply.status(400).send({ error: 'invalid_request', message: 'Current password is required to change password' });
+            return reply
+              .status(400)
+              .send({ error: 'invalid_request', message: 'Current password is required to change password' });
           }
 
           // Verify current password
@@ -118,9 +118,11 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
         if (!passwordValidation.valid) {
           return reply.status(400).send({
             error: 'invalid_request',
-            message: passwordValidation.message
+            message: passwordValidation.message,
           });
         }
+
+        passwordChanged = true;
       }
 
       // Build update object
@@ -138,14 +140,11 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
         if (!isValidEmail(body.email.trim())) {
           return reply.status(400).send({
             error: 'invalid_request',
-            message: 'Invalid email format'
+            message: 'Invalid email format',
           });
         }
         // Check if email is already taken by another user
-        const existingResults = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, body.email.trim()));
+        const existingResults = await db.select().from(users).where(eq(users.email, body.email.trim()));
         const existingUser = existingResults[0];
 
         if (existingUser && existingUser.id !== userId) {
@@ -156,7 +155,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       if (body.newPassword) {
-        updates.passwordHash = await bcrypt.hash(body.newPassword, 12);
+        updates.passwordHash = await bcrypt.hash(body.newPassword, BCRYPT_ROUNDS);
       }
 
       // If no updates, return current user
@@ -165,9 +164,27 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
       }
 
       // Update the user
-      await db.update(users)
-        .set(updates)
-        .where(eq(users.id, userId));
+      await db.update(users).set(updates).where(eq(users.id, userId));
+
+      // If password was changed, invalidate all refresh tokens for security
+      // This forces re-authentication on all devices
+      if (passwordChanged) {
+        await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId));
+
+        // Also invalidate all sessions except the current one
+        // Get current session from cookie
+        const currentSessionId = request.cookies.session_id;
+        if (currentSessionId) {
+          await db
+            .delete(sessions)
+            .where(and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)));
+        } else {
+          // No current session cookie, delete all sessions
+          await db.delete(sessions).where(eq(sessions.userId, userId));
+        }
+
+        fastify.log.info(`Password changed for user ${userId}, invalidated all refresh tokens and sessions`);
+      }
 
       // Fetch updated user
       const updatedResults = await db
@@ -181,7 +198,10 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
         .where(eq(users.id, userId));
       const updatedUser = updatedResults[0];
 
-      return { user: updatedUser };
+      return {
+        user: updatedUser,
+        passwordChanged,
+      };
     } catch (error) {
       fastify.log.error(error);
       return reply.status(500).send({ error: 'internal_error', message: 'Failed to update profile' });

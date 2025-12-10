@@ -24,5 +24,10 @@ COPY packages/db/tsconfig.json ./packages/db/
 # Expose port (Railway will provide PORT env var)
 EXPOSE 3000
 
-# Run db:push, db:seed, then start the server with tsx
-CMD ["sh", "-c", "pnpm --filter @repo/db db:push && pnpm --filter @repo/db db:seed && pnpm --filter @repo/idp dev"]
+# Set NODE_ENV to production
+ENV NODE_ENV=production
+
+# Run db:push (safe for production - only adds new columns/tables, doesn't delete data)
+# Note: db:seed is NOT run in production - it would delete all data
+# If you need to seed in production, run manually with FORCE_SEED=true
+CMD ["sh", "-c", "pnpm --filter @repo/db db:push && pnpm --filter @repo/idp dev"]

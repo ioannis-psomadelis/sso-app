@@ -184,9 +184,9 @@ sequenceDiagram
 flowchart LR
     subgraph TOKENS["TOKEN TYPES"]
         direction TB
-        AT["<b>Access Token</b><br/>5 minutes<br/>API calls"]
-        RT["<b>Refresh Token</b><br/>24 hours<br/>Get new tokens"]
-        IT["<b>ID Token</b><br/>User info<br/>email, name"]
+        AT["<b>Access Token</b><br/>2 minutes<br/>API calls"]
+        RT["<b>Refresh Token</b><br/>7 days<br/>Get new tokens"]
+        IT["<b>ID Token</b><br/>1 hour<br/>User info"]
     end
 
     subgraph STORAGE["STORAGE"]
@@ -333,6 +333,7 @@ erDiagram
         text user_id FK "user ref"
         text code_challenge "PKCE"
         text redirect_uri "url"
+        text nonce "OIDC replay protection"
         timestamp expires_at "10min"
     }
 
@@ -365,28 +366,49 @@ flowchart TB
         T2["CSRF Attack"]
         T3["Token Theft"]
         T4["Session Hijack"]
+        T5["Replay Attack"]
+        T6["Brute Force"]
     end
 
     subgraph PROTECTIONS["PROTECTIONS"]
         P1["<b>PKCE</b><br/>Code useless without verifier"]
         P2["<b>State Parameter</b><br/>Random per request"]
-        P3["<b>Short Expiry</b><br/>Access: 5min"]
+        P3["<b>Short Expiry</b><br/>Access: 2min"]
         P4["<b>HttpOnly Cookies</b><br/>JS can't access"]
+        P5["<b>Nonce</b><br/>ID token replay prevention"]
+        P6["<b>Rate Limiting</b><br/>10/min login, 100/min global"]
+    end
+
+    subgraph ADDITIONAL["ADDITIONAL SECURITY"]
+        A1["<b>Helmet</b><br/>Security headers"]
+        A2["<b>Session Fixation</b><br/>New session on login"]
+        A3["<b>Cleanup Job</b><br/>Expired data removal"]
+        A4["<b>Env Validation</b><br/>Startup checks"]
     end
 
     T1 -.->|"blocked by"| P1
     T2 -.->|"blocked by"| P2
     T3 -.->|"mitigated by"| P3
     T4 -.->|"blocked by"| P4
+    T5 -.->|"blocked by"| P5
+    T6 -.->|"blocked by"| P6
 
     style T1 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
     style T2 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
     style T3 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
     style T4 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style T5 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
+    style T6 fill:#FFCDD2,stroke:#C62828,color:#B71C1C
     style P1 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
     style P2 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
     style P3 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
     style P4 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style P5 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style P6 fill:#C8E6C9,stroke:#2E7D32,color:#1B5E20
+    style A1 fill:#E1BEE7,stroke:#7B1FA2,color:#4A148C
+    style A2 fill:#E1BEE7,stroke:#7B1FA2,color:#4A148C
+    style A3 fill:#E1BEE7,stroke:#7B1FA2,color:#4A148C
+    style A4 fill:#E1BEE7,stroke:#7B1FA2,color:#4A148C
 ```
 
 ---

@@ -19,6 +19,9 @@ pnpm dev
 pnpm db:push         # Push schema changes to PostgreSQL
 pnpm db:seed         # Seed demo data (demo@example.com / password123)
 
+# Seed with custom production URLs (for Railway)
+APP_A_URL=https://... APP_B_URL=https://... pnpm db:seed
+
 # Run individual services
 pnpm --filter @repo/idp dev      # IdP at localhost:3000
 pnpm --filter @repo/app-a dev    # TaskFlow at localhost:3001
@@ -26,6 +29,10 @@ pnpm --filter @repo/app-b dev    # DocVault at localhost:3002
 
 # Build
 pnpm build
+
+# Run tests
+pnpm --filter @repo/idp test        # Run IdP tests
+pnpm --filter @repo/idp test:watch  # Watch mode
 
 # Database studio (Drizzle)
 pnpm --filter @repo/db db:studio
@@ -70,10 +77,12 @@ pnpm --filter @repo/db db:studio
 - `users` - User accounts
 - `sessions` - IdP sessions (SSO cookies reference these)
 - `oauthClients` - Registered OAuth clients (app-a, app-b)
-- `authorizationCodes` - Temporary codes with PKCE challenge
+- `authorizationCodes` - Temporary codes with PKCE challenge and optional nonce
 - `refreshTokens` - Long-lived tokens for refresh
 - `tasks`, `documents` - App-specific data
 - `federatedIdentities` - External IdP user mappings (Google accounts)
+
+Database indexes are defined on frequently queried columns (userId, expiresAt, clientId) for performance.
 
 ### API Endpoints
 - `GET /api/profile` - Get current user's profile information (requires access token)
@@ -109,6 +118,29 @@ This demonstrates the "account linking" pattern for federated identity.
 - Short access token lifetime (2 minutes in demo) demonstrates token rotation best practices
 - Refresh tokens enable seamless UX while maintaining security through token expiration
 - In production, access tokens should be 15-60 minutes depending on security requirements
+- JWT verification uses explicit HS256 algorithm to prevent algorithm confusion attacks
+
+**OIDC Nonce Support:**
+- Optional `nonce` parameter supported in authorization requests
+- Nonce is stored with authorization code and included in ID token
+- Provides replay attack prevention for ID tokens
+
+**Session Security:**
+- Session fixation prevention: old sessions deleted on new login
+- Password changes invalidate all refresh tokens and other sessions
+- Expired data cleanup runs hourly (sessions, auth codes, refresh tokens)
+
+**Rate Limiting:**
+- Global: 100 requests/minute per IP
+- Login endpoint: 10 requests/minute (brute-force protection)
+- Token endpoint: 30 requests/minute
+
+**Security Headers:**
+- Helmet middleware adds security headers (CSP, X-Frame-Options, etc.)
+
+**Environment Validation:**
+- Startup validation ensures required environment variables are set
+- Production mode requires JWT_SECRET, COOKIE_SECRET, CORS_ORIGINS, and all URLs
 
 **External IdP Federation:**
 - Google OAuth 2.0 integration available
@@ -116,9 +148,11 @@ This demonstrates the "account linking" pattern for federated identity.
 
 ## Key Files
 
-- `apps/idp/src/services/jwt.ts` - Token generation/verification
+- `apps/idp/src/services/jwt.ts` - Token generation/verification (with nonce support)
 - `apps/idp/src/services/pkce.ts` - PKCE validation
 - `apps/idp/src/services/session.ts` - SSO session management
+- `apps/idp/src/services/cleanup.ts` - Expired data cleanup job
+- `apps/idp/src/config/validate.ts` - Environment variable validation
 - `apps/idp/src/middleware/auth.ts` - Authentication middleware
 - `apps/idp/src/constants.ts` - Configuration constants
 - `packages/auth-client/src/oauth.ts` - Client OAuth helpers
@@ -150,9 +184,9 @@ This demonstrates the "account linking" pattern for federated identity.
 ## Railway Deployment
 
 ### Live URLs
-- **IdP**: https://idp-production-628d.up.railway.app
-- **TaskFlow (app-a)**: https://app-a-production-f5e2.up.railway.app
-- **DocVault (app-b)**: https://app-b-production-3770.up.railway.app
+- **IdP**: https://idp-fed.up.railway.app
+- **TaskFlow (app-a)**: https://a-app.up.railway.app
+- **DocVault (app-b)**: https://b-app.up.railway.app
 - **Dashboard**: https://railway.com/project/c2bea5d9-e113-494c-802e-581a9f1c9fe0
 
 ### Deployment Architecture
@@ -171,26 +205,26 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 JWT_SECRET=<production-secret>
 COOKIE_SECRET=<production-secret>
 NODE_ENV=production
-IDP_URL=https://idp-production-628d.up.railway.app
-APP_A_URL=https://app-a-production-f5e2.up.railway.app
-APP_B_URL=https://app-b-production-3770.up.railway.app
-CORS_ORIGINS=https://app-a-production-f5e2.up.railway.app,https://app-b-production-3770.up.railway.app
+IDP_URL=https://idp-fed.up.railway.app
+APP_A_URL=https://a-app.up.railway.app
+APP_B_URL=https://b-app.up.railway.app
+CORS_ORIGINS=https://a-app.up.railway.app,https://b-app.up.railway.app
 ```
 
 **App-A Service:**
 ```
 RAILWAY_DOCKERFILE_PATH=apps/app-a/Dockerfile
-VITE_IDP_URL=https://idp-production-628d.up.railway.app
-VITE_APP_URL=https://app-a-production-f5e2.up.railway.app
-VITE_OTHER_APP_URL=https://app-b-production-3770.up.railway.app
+VITE_IDP_URL=https://idp-fed.up.railway.app
+VITE_APP_URL=https://a-app.up.railway.app
+VITE_OTHER_APP_URL=https://b-app.up.railway.app
 ```
 
 **App-B Service:**
 ```
 RAILWAY_DOCKERFILE_PATH=apps/app-b/Dockerfile
-VITE_IDP_URL=https://idp-production-628d.up.railway.app
-VITE_APP_URL=https://app-b-production-3770.up.railway.app
-VITE_OTHER_APP_URL=https://app-a-production-f5e2.up.railway.app
+VITE_IDP_URL=https://idp-fed.up.railway.app
+VITE_APP_URL=https://b-app.up.railway.app
+VITE_OTHER_APP_URL=https://a-app.up.railway.app
 ```
 
 ### Deployment Commands

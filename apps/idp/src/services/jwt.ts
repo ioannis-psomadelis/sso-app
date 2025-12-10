@@ -25,12 +25,25 @@ export async function generateAccessToken(user: User, clientId: string, scope: s
     .sign(JWT_SECRET);
 }
 
-export async function generateIdToken(user: User, clientId: string): Promise<string> {
-  return new SignJWT({
+/**
+ * Generate an ID token following OIDC spec
+ * @param user - The authenticated user
+ * @param clientId - The OAuth client requesting the token
+ * @param nonce - Optional nonce from the authorization request (for replay attack prevention)
+ */
+export async function generateIdToken(user: User, clientId: string, nonce?: string): Promise<string> {
+  const payload: Record<string, unknown> = {
     sub: user.id,
     email: user.email,
     name: user.name,
-  })
+  };
+
+  // Include nonce if provided (OIDC requirement for implicit/hybrid flows, optional for auth code)
+  if (nonce) {
+    payload.nonce = nonce;
+  }
+
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setIssuer(ISSUER)
@@ -48,6 +61,9 @@ export async function generateRefreshToken(): Promise<string> {
 }
 
 export async function verifyAccessToken(token: string): Promise<{ sub: string; aud: string; scope: string }> {
-  const { payload } = await jwtVerify(token, JWT_SECRET, { issuer: ISSUER });
+  const { payload } = await jwtVerify(token, JWT_SECRET, {
+    issuer: ISSUER,
+    algorithms: ['HS256'], // Explicitly require HS256 to prevent algorithm confusion attacks
+  });
   return payload as { sub: string; aud: string; scope: string };
 }

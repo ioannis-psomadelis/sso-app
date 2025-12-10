@@ -18,6 +18,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
       code_challenge_method,
       state,
       prompt,
+      nonce, // OIDC nonce parameter for replay attack prevention
     } = request.query as Record<string, string>;
 
     // Validate required params
@@ -56,6 +57,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
         codeChallengeMethod: code_challenge_method,
         scope: scope || 'openid profile email',
         redirectUri: redirect_uri,
+        nonce: nonce || null, // Store nonce for later inclusion in ID token
         expiresAt: new Date(Date.now() + AUTH_CODE_EXPIRY_MS),
       });
 
@@ -82,6 +84,7 @@ export const authorizeRoute: FastifyPluginAsync = async (fastify) => {
     loginUrl.searchParams.set('code_challenge', code_challenge);
     loginUrl.searchParams.set('code_challenge_method', code_challenge_method);
     if (state) loginUrl.searchParams.set('state', state);
+    if (nonce) loginUrl.searchParams.set('nonce', nonce);
 
     return reply.redirect(loginUrl.toString());
   });

@@ -307,8 +307,9 @@ App verifies: response.state === stored_state
 
 | Token | Διάρκεια | Χρήση |
 |-------|----------|-------|
-| Access Token | 5 λεπτά | API calls |
-| Refresh Token | 24 ώρες | Ανανέωση access token |
+| Access Token | 2 λεπτά | API calls |
+| Refresh Token | 7 ημέρες | Ανανέωση access token |
+| ID Token | 1 ώρα | Πληροφορίες χρήστη |
 | Session | 24 ώρες | SSO across apps |
 
 ### 4. Automatic Token Refresh

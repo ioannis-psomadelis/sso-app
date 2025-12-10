@@ -1,8 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
-import { db, users, authorizationCodes, oauthClients } from '@repo/db';
+import { db, users, authorizationCodes, oauthClients, sessions } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
-import { createSession } from '../services/session.js';
+import { createSession, deleteSession } from '../services/session.js';
 import { v4 as uuid } from 'uuid';
 import { SESSION_DURATION_SECONDS, AUTH_CODE_EXPIRY_MS } from '../constants.js';
 
@@ -147,6 +147,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
         <input type="hidden" name="code_challenge" value="${escapeHtml(params.code_challenge || '')}">
         <input type="hidden" name="code_challenge_method" value="${escapeHtml(params.code_challenge_method || 'S256')}">
         <input type="hidden" name="state" value="${escapeHtml(params.state || '')}">
+        <input type="hidden" name="nonce" value="${escapeHtml(params.nonce || '')}">
         <div class="form-group">
           <label for="email">Email</label>
           <input type="email" id="email" name="email" value="demo@example.com" required>
@@ -206,6 +207,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       code_challenge,
       code_challenge_method,
       state,
+      nonce,
     } = request.body as Record<string, string>;
 
     // Find user
@@ -228,7 +230,14 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'invalid_client' });
     }
 
-    // Create session
+    // Session fixation prevention: Delete any existing session before creating a new one
+    // This ensures attackers can't fixate a session ID before login
+    const existingSessionId = request.cookies.session_id;
+    if (existingSessionId) {
+      await deleteSession(existingSessionId);
+    }
+
+    // Create fresh session with new ID
     const sessionId = await createSession(user.id);
     reply.setCookie('session_id', sessionId, {
       httpOnly: true,
@@ -248,6 +257,7 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       codeChallengeMethod: code_challenge_method,
       scope: scope || 'openid profile email',
       redirectUri: redirect_uri,
+      nonce: nonce || null, // Store nonce for later inclusion in ID token
       expiresAt: new Date(Date.now() + AUTH_CODE_EXPIRY_MS),
     });
 

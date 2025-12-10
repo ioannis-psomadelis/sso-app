@@ -4,6 +4,8 @@ import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import websocket from '@fastify/websocket';
+import rateLimit from '@fastify/rate-limit';
+import helmet from '@fastify/helmet';
 import { authorizeRoute } from './routes/authorize.js';
 import { loginRoute } from './routes/login.js';
 import { tokenRoute } from './routes/token.js';
@@ -14,80 +16,144 @@ import { tasksApiRoute } from './routes/api/tasks.js';
 import { documentsRoute } from './routes/api/documents.js';
 import { profileApiRoute } from './routes/api/profile.js';
 import { federatedRoute } from './routes/federated.js';
+import { validateConfig } from './config/validate.js';
+import { startCleanupJob, stopCleanupJob } from './services/cleanup.js';
+import { db, users } from '@repo/db';
+
+// Validate configuration before starting
+const config = validateConfig();
 
 const fastify = Fastify({ logger: true });
 
-// Configure CORS origins from environment or use defaults
-const corsOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:3001', 'http://localhost:3002'];
+// Security headers with Helmet
+await fastify.register(helmet, {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles in login page
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Required for inline scripts in login page
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", ...config.corsOrigins],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedding for OAuth flows
+});
 
+// Rate limiting for security-sensitive endpoints
+await fastify.register(rateLimit, {
+  max: 100, // Global limit: 100 requests per minute
+  timeWindow: '1 minute',
+});
+
+// Configure CORS origins
 await fastify.register(cors, {
-  origin: corsOrigins,
+  origin: config.corsOrigins,
   credentials: true,
 });
 
-// Warn if using default COOKIE_SECRET in production
-if (!process.env.COOKIE_SECRET && process.env.NODE_ENV === 'production') {
-  console.warn('WARNING: Using default COOKIE_SECRET in production is insecure!');
-}
-
 // Cookie with a proper secret
 await fastify.register(cookie, {
-  secret: process.env.COOKIE_SECRET || 'dev-cookie-secret-change-in-production',
+  secret: config.cookieSecret,
 });
 await fastify.register(formbody);
 await fastify.register(websocket);
 
-// Store debug events in memory (per-session tracking)
+// Store debug events in memory (per-session tracking) - only in development
 const debugSessions = new Map<string, any[]>(); // sessionId -> events
 const wsClients = new Set<any>();
 
-// WebSocket route for debug events
-fastify.register(async function (fastify) {
-  fastify.get('/ws/debug', { websocket: true }, (socket, req) => {
-    wsClients.add(socket);
+// WebSocket route for debug events (only enable in development)
+if (config.nodeEnv !== 'production') {
+  fastify.register(async function (fastify) {
+    fastify.get('/ws/debug', { websocket: true }, (socket, req) => {
+      wsClients.add(socket);
 
-    // Send existing events for this session if any
-    const sessionId = (req.query as any).sessionId;
-    if (sessionId && debugSessions.has(sessionId)) {
-      socket.send(JSON.stringify({
-        type: 'history',
-        events: debugSessions.get(sessionId)
-      }));
-    }
-
-    socket.on('message', (message: any) => {
-      try {
-        const data = JSON.parse(message.toString());
-        if (data.type === 'event' && data.sessionId) {
-          // Store event
-          if (!debugSessions.has(data.sessionId)) {
-            debugSessions.set(data.sessionId, []);
-          }
-          debugSessions.get(data.sessionId)!.push(data.event);
-
-          // Broadcast to all clients with same sessionId
-          wsClients.forEach((client: any) => {
-            if (client.readyState === 1) { // WebSocket.OPEN
-              client.send(JSON.stringify({
-                type: 'event',
-                event: data.event,
-                sessionId: data.sessionId
-              }));
-            }
-          });
-        }
-      } catch (e) {
-        console.error('WS message parse error:', e);
+      // Send existing events for this session if any
+      const sessionId = (req.query as any).sessionId;
+      if (sessionId && debugSessions.has(sessionId)) {
+        socket.send(
+          JSON.stringify({
+            type: 'history',
+            events: debugSessions.get(sessionId),
+          })
+        );
       }
-    });
 
-    socket.on('close', () => {
-      wsClients.delete(socket);
+      socket.on('message', (message: any) => {
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === 'event' && data.sessionId) {
+            // Store event
+            if (!debugSessions.has(data.sessionId)) {
+              debugSessions.set(data.sessionId, []);
+            }
+            debugSessions.get(data.sessionId)!.push(data.event);
+
+            // Broadcast to all clients with same sessionId
+            wsClients.forEach((client: any) => {
+              if (client.readyState === 1) {
+                // WebSocket.OPEN
+                client.send(
+                  JSON.stringify({
+                    type: 'event',
+                    event: data.event,
+                    sessionId: data.sessionId,
+                  })
+                );
+              }
+            });
+          }
+        } catch (e) {
+          console.error('WS message parse error:', e);
+        }
+      });
+
+      socket.on('close', () => {
+        wsClients.delete(socket);
+      });
     });
   });
-});
+}
+
+// Stricter rate limiting for authentication endpoints
+await fastify.register(
+  async function (fastify) {
+    await fastify.register(rateLimit, {
+      max: 10, // 10 requests per minute for login
+      timeWindow: '1 minute',
+      keyGenerator: (request) => {
+        // Rate limit by IP
+        return request.ip;
+      },
+      errorResponseBuilder: () => {
+        return {
+          error: 'too_many_requests',
+          error_description: 'Too many login attempts. Please try again later.',
+        };
+      },
+    });
+  },
+  { prefix: '/login' }
+);
+
+await fastify.register(
+  async function (fastify) {
+    await fastify.register(rateLimit, {
+      max: 30, // 30 token requests per minute
+      timeWindow: '1 minute',
+      keyGenerator: (request) => {
+        return request.ip;
+      },
+      errorResponseBuilder: () => {
+        return {
+          error: 'too_many_requests',
+          error_description: 'Too many token requests. Please try again later.',
+        };
+      },
+    });
+  },
+  { prefix: '/token' }
+);
 
 // Register routes
 fastify.register(authorizeRoute);
@@ -232,14 +298,40 @@ fastify.get('/', async (request, reply) => {
   `;
 });
 
-// Health check
-fastify.get('/health', async () => ({ status: 'ok' }));
+// Health check with database connectivity test
+fastify.get('/health', async (request, reply) => {
+  try {
+    // Test database connection
+    await db.select().from(users).limit(1);
+    return { status: 'ok', database: 'connected' };
+  } catch (error) {
+    reply.status(503);
+    return { status: 'error', database: 'disconnected' };
+  }
+});
 
-const port = parseInt(process.env.PORT || '3000', 10);
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  console.log(`${signal} received, shutting down gracefully...`);
+
+  // Stop cleanup job
+  stopCleanupJob();
+
+  // Close server
+  await fastify.close();
+  console.log('Server closed');
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 try {
-  await fastify.listen({ port, host: '0.0.0.0' });
-  console.log(`🔐 IdP server running on port ${port}`);
+  // Start cleanup job for expired data
+  startCleanupJob();
+
+  await fastify.listen({ port: config.port, host: '0.0.0.0' });
+  console.log(`IdP server running on port ${config.port}`);
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

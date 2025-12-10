@@ -21,6 +21,8 @@ sso-app/
 │   ├── idp/                 # Identity Provider (Fastify)
 │   │   ├── src/
 │   │   │   ├── index.ts           # Entry point
+│   │   │   ├── config/
+│   │   │   │   └── validate.ts    # Environment validation
 │   │   │   ├── routes/
 │   │   │   │   ├── authorize.ts   # OAuth authorization
 │   │   │   │   ├── token.ts       # Token exchange
@@ -32,7 +34,8 @@ sso-app/
 │   │   │   │       └── profile.ts   # User profile API (GET/PATCH)
 │   │   │   └── services/
 │   │   │       ├── session.ts     # Session management
-│   │   │       └── jwt.ts         # Token signing
+│   │   │       ├── jwt.ts         # Token signing (with nonce support)
+│   │   │       └── cleanup.ts     # Expired data cleanup job
 │   │   └── .env                   # Google OAuth config
 │   │
 │   ├── app-a/               # TaskFlow (React + Vite)
@@ -84,6 +87,7 @@ interface AuthorizeParams {
   code_challenge: string;   // PKCE challenge
   code_challenge_method: 'S256';
   state?: string;           // CSRF protection
+  nonce?: string;           // OIDC replay attack prevention
 }
 ```
 
@@ -163,9 +167,9 @@ interface RefreshRequest {
 │     → DELETE FROM authorization_codes WHERE code = ?        │
 │                                                              │
 │  5. Generate tokens:                                        │
-│     → access_token  (JWT, 5 min)                            │
-│     → refresh_token (opaque, 24h)                           │
-│     → id_token      (JWT with user claims)                  │
+│     → access_token  (JWT, 2 min)                            │
+│     → refresh_token (opaque, 7 days)                        │
+│     → id_token      (JWT with user claims + nonce)          │
 │                                                              │
 │  6. Store refresh_token                                     │
 │     → INSERT INTO refresh_tokens (...)                      │
@@ -525,6 +529,7 @@ export const authorizationCodes = pgTable('authorization_codes', {
   codeChallengeMethod: text('code_challenge_method').notNull(),
   scope: text('scope'),
   redirectUri: text('redirect_uri').notNull(),
+  nonce: text('nonce'),  // OIDC nonce for replay protection
   expiresAt: timestamp('expires_at').notNull(),
 });
 
@@ -593,7 +598,8 @@ export const federatedIdentities = pgTable('federated_identities', {
     "exp": 1234567890,
     "iat": 1234567590,
     "email": "user@example.com",
-    "name": "John Doe"
+    "name": "John Doe",
+    "nonce": "abc123..."  // Optional - included if provided in authorize request
   }
 }
 ```
