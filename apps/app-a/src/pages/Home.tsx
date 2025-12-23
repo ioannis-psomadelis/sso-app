@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Button,
   buttonVariants,
@@ -13,35 +12,62 @@ import {
   Spinner,
   Input,
   toast,
-  GoogleLogo,
+  Skeleton,
+  Check,
 } from '@repo/ui';
 import { useAuth, IDP_URL, OTHER_APP_URL } from '../context/AuthContext';
 import { createApiClient, type Task } from '@repo/auth-client';
+import { Landing } from '../components/Landing';
 
 const apiClient = createApiClient(IDP_URL);
 
-export function Home() {
-  const { user, isAuthenticated, isLoading, login, loginWithGoogle, logout } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+// Skeleton for task list
+function TasksSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
+          <Skeleton className="size-5 rounded" />
+          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="h-8 w-16 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  // Task management state
+// Skeleton for stats
+function StatsSkeleton() {
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="p-4 rounded-xl bg-muted/50 border border-border">
+          <Skeleton className="h-8 w-12 mb-1" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Home() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  // All hooks must be before any early return
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true); // Start true to show skeleton
   const [newTaskText, setNewTaskText] = useState('');
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [togglingTaskId, setTogglingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    await logout();
-    setIsLoggingOut(false);
-  };
 
   // Fetch tasks on mount and when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchTasks();
+    } else {
+      setIsLoadingTasks(false);
     }
   }, [isAuthenticated]);
 
@@ -76,175 +102,162 @@ export function Home() {
   };
 
   const handleToggleTask = async (taskId: string) => {
+    setTogglingTaskId(taskId);
     try {
       const updatedTask = await apiClient.toggleTask(taskId);
       setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
     } catch {
       toast.error('Failed to update task');
+    } finally {
+      setTogglingTaskId(null);
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    setDeletingTaskId(taskId);
     try {
       await apiClient.deleteTask(taskId);
       setTasks(prev => prev.filter(t => t.id !== taskId));
       toast.success('Task deleted');
     } catch {
       toast.error('Failed to delete task');
+    } finally {
+      setDeletingTaskId(null);
     }
   };
 
-  // Auth loading is now handled by AuthOverlay at App level
+  // Wait for auth state to be determined (prevents flash)
   if (isLoading) {
     return null;
   }
 
+  // Show fancy landing page for unauthenticated users
   if (!isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center space-y-4">
-            <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold mx-auto">
-              T
-            </div>
-            <div>
-              <CardTitle className="text-xl">Welcome to TaskFlow</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Choose your sign-in method
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              onClick={login}
-              className="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white"
-              aria-label="Sign in with Custom SSO"
-            >
-              Custom SSO
-            </Button>
-            <Button
-              onClick={loginWithGoogle}
-              className="w-full"
-              variant="outline"
-              aria-label="Sign in with Google"
-            >
-              <GoogleLogo className="w-5 h-5 mr-2" />
-              Sign in with Google
-            </Button>
-            <p className="text-xs text-center text-muted-foreground pt-2">
-              Watch the debug panel to see the OAuth 2.0 + PKCE flow
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <Landing />;
   }
+
+  const completedCount = tasks.filter(t => t.completed).length;
+  const pendingCount = tasks.filter(t => !t.completed).length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Welcome, {user?.name?.split(' ')[0]}!</h1>
+      {/* Welcome Header */}
+      <div className="flex items-start gap-4">
+        <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-lg shadow-primary/25">
+          {user?.name?.charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
           <p className="text-muted-foreground">{user?.email}</p>
         </div>
-        <div className="flex gap-2">
-          <Link to="/settings" className={buttonVariants({ variant: 'ghost' })} aria-label="Go to settings">
-            Settings
-          </Link>
-          <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut} aria-label="Sign out">
-            {isLoggingOut && <Spinner />}
-            {isLoggingOut ? 'Signing out' : 'Sign out'}
-          </Button>
-        </div>
+        <Badge variant="secondary" className="hidden sm:flex">
+          <Check className="size-3 mr-1" />
+          Authenticated
+        </Badge>
       </div>
 
-      {/* Success Banner */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="text-2xl">✨</div>
-            <div className="flex-1 space-y-2">
-              <p className="font-medium">
-                Successfully authenticated
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Check the debug panel to see your tokens and API calls.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Badge variant="default">Access Token</Badge>
-                <Badge variant="secondary">ID Token</Badge>
-                <Badge variant="outline">Refresh Token</Badge>
-              </div>
-            </div>
+      {/* Stats */}
+      {isLoadingTasks ? (
+        <StatsSkeleton />
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+            <p className="text-2xl font-bold text-primary">{tasks.length}</p>
+            <p className="text-xs text-muted-foreground">Total Tasks</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedCount}</p>
+            <p className="text-xs text-muted-foreground">Completed</p>
+          </div>
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</p>
+            <p className="text-xs text-muted-foreground">Pending</p>
+          </div>
+        </div>
+      )}
 
-      {/* Tasks */}
+      {/* Tasks Card */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Your Tasks</CardTitle>
-            {isLoadingTasks && <Spinner />}
+            <CardTitle className="text-lg flex items-center gap-2">
+              Your Tasks
+              {isLoadingTasks && <Spinner className="size-4" />}
+            </CardTitle>
+            {tasks.length > 0 && !isLoadingTasks && (
+              <Badge variant="secondary" className="font-normal">
+                {completedCount}/{tasks.length} done
+              </Badge>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="pt-0 space-y-4">
+        <CardContent className="space-y-4">
           {/* Add Task Form */}
           <form onSubmit={handleCreateTask} className="flex gap-2">
             <Input
               ref={inputRef}
               type="text"
-              placeholder="Add a new task..."
+              placeholder="What needs to be done?"
               value={newTaskText}
               onChange={(e) => setNewTaskText(e.target.value)}
               disabled={isCreatingTask}
               className="flex-1"
             />
-            <Button type="submit" disabled={isCreatingTask || !newTaskText.trim()} size="sm" aria-label="Add new task">
-              {isCreatingTask && <Spinner />}
-              {isCreatingTask ? 'Adding...' : 'Add'}
+            <Button type="submit" disabled={isCreatingTask || !newTaskText.trim()} aria-label="Add new task">
+              {isCreatingTask ? <Spinner className="size-4" /> : 'Add Task'}
             </Button>
           </form>
 
           {/* Tasks List */}
-          {isLoadingTasks && tasks.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Spinner className="mx-auto mb-2" />
-              <p className="text-sm">Loading tasks...</p>
-            </div>
+          {isLoadingTasks ? (
+            <TasksSkeleton />
           ) : tasks.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p className="text-sm">No tasks yet. Add your first task above!</p>
+            <div className="text-center py-12">
+              <div className="size-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <Check className="size-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium mb-1">No tasks yet</h3>
+              <p className="text-sm text-muted-foreground">
+                Add your first task above to get started
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 p-3 border border-border hover:bg-muted/50 transition-colors group"
+                  className={`flex items-center gap-3 p-4 rounded-xl border border-border hover:bg-muted/50 transition-all group ${
+                    togglingTaskId === task.id || deletingTaskId === task.id ? 'opacity-60' : ''
+                  }`}
                 >
-                  <Checkbox
-                    id={`task-${task.id}`}
-                    checked={task.completed}
-                    onCheckedChange={() => handleToggleTask(task.id)}
-                  />
+                  {togglingTaskId === task.id ? (
+                    <Spinner className="size-5" />
+                  ) : (
+                    <Checkbox
+                      id={`task-${task.id}`}
+                      checked={task.completed}
+                      onCheckedChange={() => handleToggleTask(task.id)}
+                      disabled={!!togglingTaskId || !!deletingTaskId}
+                      className="size-5"
+                    />
+                  )}
                   <Label
                     htmlFor={`task-${task.id}`}
-                    className={`flex-1 cursor-pointer ${
+                    className={`flex-1 cursor-pointer text-base ${
                       task.completed ? 'line-through text-muted-foreground' : ''
                     }`}
                   >
                     {task.text}
                   </Label>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteTask(task.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    disabled={deletingTaskId === task.id}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                     aria-label={`Delete task: ${task.text}`}
                   >
-                    Delete
+                    {deletingTaskId === task.id ? <Spinner className="size-4" /> : 'Delete'}
                   </Button>
                 </div>
               ))}
@@ -253,24 +266,27 @@ export function Home() {
         </CardContent>
       </Card>
 
-      {/* SSO Demo */}
-      <Card className="bg-muted/50">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Try Single Sign-On</p>
+      {/* SSO Demo Card */}
+      <Card className="border-border bg-card">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="size-12 rounded-xl bg-accent flex items-center justify-center text-accent-foreground text-lg font-bold shadow-lg shadow-accent/25">
+              D
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Try Single Sign-On</p>
               <p className="text-sm text-muted-foreground">
-                Visit DocVault - you'll be logged in automatically!
+                Visit DocVault - you're already logged in!
               </p>
             </div>
             <a
               href={OTHER_APP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className={buttonVariants()}
+              className={buttonVariants({ variant: 'default' })}
               aria-label="Open DocVault application in new tab"
             >
-              Open DocVault →
+              Open DocVault
             </a>
           </div>
         </CardContent>

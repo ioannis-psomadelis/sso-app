@@ -26,6 +26,7 @@ export interface User {
   sub: string;
   email: string;
   name: string;
+  role: string;
 }
 
 export interface Tokens {
@@ -45,6 +46,7 @@ export interface AuthContextType {
   decodedTokens: DecodedTokens;
   accessTokenExpiry: Date | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
   login: () => void;
   loginWithGoogle: () => void;
@@ -98,6 +100,7 @@ export function createAuthProvider(config: AuthConfig) {
                 sub: decodedId.payload.sub as string,
                 email: (decodedId.payload.email as string) || '',
                 name: (decodedId.payload.name as string) || '',
+                role: (decodedId.payload.role as string) || 'user',
               });
             }
           } catch {
@@ -293,6 +296,7 @@ export function createAuthProvider(config: AuthConfig) {
             sub: decodedId.payload.sub as string,
             email: (decodedId.payload.email as string) || '',
             name: (decodedId.payload.name as string) || '',
+            role: (decodedId.payload.role as string) || 'user',
           });
         }
 
@@ -339,6 +343,7 @@ export function createAuthProvider(config: AuthConfig) {
           decodedTokens,
           accessTokenExpiry,
           isAuthenticated: !!user,
+          isAdmin: user?.role === 'admin',
           isLoading,
           login,
           loginWithGoogle,

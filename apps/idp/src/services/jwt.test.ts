@@ -8,6 +8,7 @@ const mockUser = {
   email: 'test@example.com',
   passwordHash: 'hashed',
   name: 'Test User',
+  role: 'user',
   createdAt: new Date(),
 };
 
@@ -71,6 +72,7 @@ describe('JWT Service', () => {
       expect(decoded.sub).toBe(mockUser.id);
       expect(decoded.email).toBe(mockUser.email);
       expect(decoded.name).toBe(mockUser.name);
+      expect(decoded.role).toBe(mockUser.role); // RBAC: role claim
       expect(decoded.aud).toBe('app-a');
     });
 

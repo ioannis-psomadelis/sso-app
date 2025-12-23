@@ -54,6 +54,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
           id: user.id,
           email: user.email,
           name: user.name,
+          role: user.role,
           createdAt: user.createdAt,
           hasLocalPassword,
         },
@@ -192,6 +193,7 @@ export const profileApiRoute: FastifyPluginAsync = async (fastify) => {
           id: users.id,
           email: users.email,
           name: users.name,
+          role: users.role,
           createdAt: users.createdAt,
         })
         .from(users)

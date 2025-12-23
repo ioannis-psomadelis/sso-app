@@ -15,6 +15,7 @@ import { wellKnownRoute } from './routes/well-known.js';
 import { tasksApiRoute } from './routes/api/tasks.js';
 import { documentsRoute } from './routes/api/documents.js';
 import { profileApiRoute } from './routes/api/profile.js';
+import { adminRoute } from './routes/api/admin.js';
 import { federatedRoute } from './routes/federated.js';
 import { validateConfig } from './config/validate.js';
 import { startCleanupJob, stopCleanupJob } from './services/cleanup.js';
@@ -165,6 +166,7 @@ fastify.register(wellKnownRoute);
 fastify.register(tasksApiRoute);
 fastify.register(documentsRoute);
 fastify.register(profileApiRoute);
+fastify.register(adminRoute);
 fastify.register(federatedRoute);
 
 // Root route - Landing page

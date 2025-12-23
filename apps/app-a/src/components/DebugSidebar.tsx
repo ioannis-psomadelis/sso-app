@@ -51,18 +51,73 @@ interface DebugSidebarProps {
     idToken: DecodedToken | null;
   };
   accessTokenExpiry: Date | null;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry }: DebugSidebarProps) {
+export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry, isOpen, onOpenChange }: DebugSidebarProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
 
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Mobile: controlled by parent via isOpen prop
+  if (isMobile) {
+    if (!isOpen) return null;
+
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => onOpenChange?.(false)}
+        />
+        {/* Sidebar Sheet */}
+        <aside className="fixed right-0 top-0 bottom-0 w-full max-w-[400px] bg-card flex flex-col z-50 md:hidden animate-in slide-in-from-right duration-300">
+          {/* Header */}
+          <div className="h-14 border-b px-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <Code className="size-4 text-muted-foreground" />
+              <span className="font-semibold text-sm">Debug Panel</span>
+              <Badge variant="outline" className="text-xs">
+                {events.length} events
+              </Badge>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange?.(false)}
+              className="size-8"
+            >
+              <PanelRight className="size-4" />
+            </Button>
+          </div>
+
+          {/* Content */}
+          <DebugContent
+            events={events}
+            tokens={tokens}
+            decodedTokens={decodedTokens}
+            accessTokenExpiry={accessTokenExpiry}
+          />
+        </aside>
+      </>
+    );
+  }
+
+  // Desktop: self-managed collapsed state
   if (isCollapsed) {
     return (
       <Button
         variant="outline"
         size="icon"
         onClick={() => setIsCollapsed(false)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 rounded-l-lg rounded-r-none border-r-0 z-20 h-12 w-8"
+        className="fixed right-0 top-1/2 -translate-y-1/2 rounded-l-lg rounded-r-none border-r-0 z-20 h-12 w-8 hidden md:flex"
       >
         <PanelLeft className="size-4" />
       </Button>
@@ -70,7 +125,7 @@ export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry 
   }
 
   return (
-    <aside className="w-[400px] border-l bg-card flex flex-col shrink-0 h-screen sticky top-0">
+    <aside className="w-[400px] border-l bg-card flex flex-col shrink-0 h-screen sticky top-0 hidden md:flex">
       {/* Header */}
       <div className="h-14 border-b px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -90,34 +145,59 @@ export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry 
         </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 pt-2 shrink-0">
-          <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="tokens">Tokens</TabsTrigger>
-          </TabsList>
-        </div>
-
-        <div className="flex-1 overflow-hidden">
-          <TabsContent value="timeline" className="h-full m-0 mt-2 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto scrollbar-visible">
-              <TimelineView events={events} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="tokens" className="h-full m-0 mt-2 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto scrollbar-visible">
-              <TokensView
-                tokens={tokens}
-                decodedTokens={decodedTokens}
-                accessTokenExpiry={accessTokenExpiry}
-              />
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
+      {/* Content */}
+      <DebugContent
+        events={events}
+        tokens={tokens}
+        decodedTokens={decodedTokens}
+        accessTokenExpiry={accessTokenExpiry}
+      />
     </aside>
+  );
+}
+
+interface DebugContentProps {
+  events: DebugEvent[];
+  tokens: {
+    accessToken: string | null;
+    refreshToken: string | null;
+    idToken: string | null;
+  };
+  decodedTokens: {
+    accessToken: DecodedToken | null;
+    idToken: DecodedToken | null;
+  };
+  accessTokenExpiry: Date | null;
+}
+
+function DebugContent({ events, tokens, decodedTokens, accessTokenExpiry }: DebugContentProps) {
+  return (
+    <Tabs defaultValue="timeline" className="flex-1 flex flex-col overflow-hidden">
+      <div className="px-4 pt-2 shrink-0">
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="tokens">Tokens</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <div className="flex-1 overflow-hidden">
+        <TabsContent value="timeline" className="h-full m-0 mt-2 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto scrollbar-visible">
+            <TimelineView events={events} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tokens" className="h-full m-0 mt-2 data-[state=active]:flex data-[state=active]:flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto scrollbar-visible">
+            <TokensView
+              tokens={tokens}
+              decodedTokens={decodedTokens}
+              accessTokenExpiry={accessTokenExpiry}
+            />
+          </div>
+        </TabsContent>
+      </div>
+    </Tabs>
   );
 }
 

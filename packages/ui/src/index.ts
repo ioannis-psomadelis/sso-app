@@ -26,7 +26,7 @@ export {
 export { ThemeToggle } from "./components/ThemeToggle"
 export { Toaster, toast } from "./components/Sonner"
 export { PageLoader, AuthLoader, Spinner } from "./components/PageLoader"
-export { AuthOverlay } from "./components/AuthOverlay"
+export { Skeleton } from "./components/Skeleton"
 export { ProviderSelector, ProviderDivider, GoogleLogo, type Provider } from "./components/ProviderSelector"
 
 // Icons from lucide
@@ -36,21 +36,28 @@ export {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Clock,
   Code,
   Copy,
+  Edit,
   Eye,
   EyeOff,
   ExternalLink,
+  FileText,
   Key,
   Loader2,
   LogOut,
   Moon,
   PanelLeft,
   PanelRight,
+  Plus,
   RefreshCw,
   Settings,
+  Shield,
   Sun,
   Timer,
+  Trash2,
   User,
+  Users,
   X
 } from "lucide-react"

@@ -7,17 +7,32 @@ import { logCodeReceived } from '@repo/auth-client';
 export function Callback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { handleCallback } = useAuth();
+  const { handleCallback, isAuthenticated, isLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
+    // If already authenticated, just redirect to home
+    if (isAuthenticated && !isLoading) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    // Wait for auth loading to complete before processing
+    if (isLoading) return;
+
     // Prevent double execution from React StrictMode
     if (isProcessingRef.current) return;
 
     const code = searchParams.get('code');
     const err = searchParams.get('error');
+
+    // No code means user navigated here directly - redirect to home
+    if (!code && !err) {
+      navigate('/', { replace: true });
+      return;
+    }
 
     if (err) {
       setError(err);
@@ -40,15 +55,21 @@ export function Callback() {
       handleCallback(code, state)
         .then(() => {
           setStatus('success');
-          setTimeout(() => navigate('/'), 500);
+          setTimeout(() => navigate('/', { replace: true }), 500);
         })
         .catch((e: Error) => {
+          // Invalid state usually means stale callback (back button, refresh)
+          // Just redirect home instead of showing error
+          if (e.message.includes('state')) {
+            navigate('/', { replace: true });
+            return;
+          }
           setError(e.message);
           setStatus('error');
           isProcessingRef.current = false;
         });
     }
-  }, [searchParams, handleCallback, navigate]);
+  }, [searchParams, handleCallback, navigate, isAuthenticated, isLoading]);
 
   if (status === 'success') {
     return (

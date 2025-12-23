@@ -72,6 +72,7 @@ pnpm --filter @repo/db db:studio
 - `federated.ts` - External IdP federation (Google OAuth 2.0)
 - `api/tasks.ts`, `api/documents.ts` - Protected resource APIs
 - `api/profile.ts` - User profile management (GET/PATCH)
+- `api/admin.ts` - Admin-only APIs (requires admin role)
 
 ### Database Schema (`packages/db/src/schema.ts`)
 - `users` - User accounts
@@ -94,6 +95,20 @@ Database indexes are defined on frequently queried columns (userId, expiresAt, c
   - Password requirements: 10+ chars, uppercase, lowercase, number
 - `GET /api/tasks` - Get user's tasks (TaskFlow app data)
 - `GET /api/documents` - Get user's documents (DocVault app data)
+
+### Admin API Endpoints (RBAC)
+Admin endpoints require `role: 'admin'` in the user record:
+- `GET /api/admin/users` - Get all users (admin only)
+- `GET /api/admin/tasks` - Get ALL tasks from ALL users (admin only)
+- `GET /api/admin/documents` - Get ALL documents from ALL users (admin only)
+
+### Role-Based Access Control (RBAC)
+- Users have a `role` field: `'user'` (default) or `'admin'`
+- Role is included in the ID token as a claim
+- Admin middleware checks role before allowing access to admin endpoints
+- Demo users:
+  - `demo@example.com / password123` (role: user)
+  - `admin@example.com / admin123` (role: admin)
 
 ### Account Linking
 OAuth users (Google) are created with `passwordHash: 'OAUTH_USER_NO_LOCAL_PASSWORD'`.

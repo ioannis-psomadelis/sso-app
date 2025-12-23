@@ -68,13 +68,15 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/documents/:id - Delete a document
+  // Admins can delete any document, regular users only their own
   fastify.delete<{
     Params: { id: string };
   }>('/api/documents/:id', async (request, reply) => {
     try {
       const { id } = request.params;
+      const isAdmin = request.userRole === 'admin';
 
-      // Verify the document belongs to the user
+      // Verify the document exists
       const results = await db.select().from(documents).where(eq(documents.id, id));
       const doc = results[0];
 
@@ -82,7 +84,8 @@ export const documentsRoute: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Document not found' });
       }
 
-      if (doc.userId !== request.userId!) {
+      // Admin can delete any document, regular users only their own
+      if (!isAdmin && doc.userId !== request.userId!) {
         return reply.status(403).send({ error: 'Not authorized to delete this document' });
       }
 

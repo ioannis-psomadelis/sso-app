@@ -18,6 +18,31 @@ export interface Document {
   createdAt: string;
 }
 
+// Admin types
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface AdminTask extends Task {
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface AdminDocument extends Document {
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
 export interface ApiError {
   error: string;
   message: string;
@@ -112,6 +137,42 @@ class ApiClient {
   }
 
   async deleteDocument(documentId: string): Promise<void> {
+    await this.request<void>(`/api/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Admin endpoints
+
+  async getAdminUsers(): Promise<AdminUser[]> {
+    const response = await this.request<{ users: AdminUser[] }>('/api/admin/users');
+    return response.users;
+  }
+
+  async getAdminTasks(): Promise<AdminTask[]> {
+    const response = await this.request<{ tasks: AdminTask[] }>('/api/admin/tasks');
+    return response.tasks;
+  }
+
+  async getAdminDocuments(): Promise<AdminDocument[]> {
+    const response = await this.request<{ documents: AdminDocument[] }>('/api/admin/documents');
+    return response.documents;
+  }
+
+  async adminToggleTask(taskId: string): Promise<Task> {
+    const response = await this.request<{ task: Task }>(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+    });
+    return response.task;
+  }
+
+  async adminDeleteTask(taskId: string): Promise<void> {
+    await this.request<void>(`/api/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async adminDeleteDocument(documentId: string): Promise<void> {
     await this.request<void>(`/api/documents/${documentId}`, {
       method: 'DELETE',
     });

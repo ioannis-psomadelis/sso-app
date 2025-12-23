@@ -36,6 +36,7 @@ export async function generateIdToken(user: User, clientId: string, nonce?: stri
     sub: user.id,
     email: user.email,
     name: user.name,
+    role: user.role, // RBAC: Include user role in ID token
   };
 
   // Include nonce if provided (OIDC requirement for implicit/hybrid flows, optional for auth code)

@@ -35,3 +35,13 @@ export async function ensureUserExists(tokenResult: TokenVerificationResult): Pr
   // For local provider, the user should already exist
   throw new Error('Local user not found');
 }
+
+/**
+ * Get user role from database
+ * Returns 'user' as default if role is not set
+ */
+export async function getUserRole(userId: string): Promise<string> {
+  const results = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+  const user = results[0];
+  return user?.role || 'user';
+}

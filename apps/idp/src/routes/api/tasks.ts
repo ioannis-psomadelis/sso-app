@@ -57,16 +57,22 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // PATCH /api/tasks/:id - Toggles task completion
+  // Admins can toggle any task, regular users only their own
   fastify.patch('/api/tasks/:id', async (request, reply) => {
     const userId = request.userId!;
+    const isAdmin = request.userRole === 'admin';
     const { id } = request.params as { id: string };
 
     try {
-      // First check if the task exists and belongs to the user
+      // Admin can access any task, regular users only their own
+      const whereClause = isAdmin
+        ? eq(tasks.id, id)
+        : and(eq(tasks.id, id), eq(tasks.userId, userId));
+
       const results = await db
         .select()
         .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+        .where(whereClause);
       const task = results[0];
 
       if (!task) {
@@ -89,16 +95,22 @@ export const tasksApiRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // DELETE /api/tasks/:id - Deletes a task
+  // Admins can delete any task, regular users only their own
   fastify.delete('/api/tasks/:id', async (request, reply) => {
     const userId = request.userId!;
+    const isAdmin = request.userRole === 'admin';
     const { id } = request.params as { id: string };
 
     try {
-      // First check if the task exists and belongs to the user
+      // Admin can access any task, regular users only their own
+      const whereClause = isAdmin
+        ? eq(tasks.id, id)
+        : and(eq(tasks.id, id), eq(tasks.userId, userId));
+
       const results = await db
         .select()
         .from(tasks)
-        .where(and(eq(tasks.id, id), eq(tasks.userId, userId)));
+        .where(whereClause);
       const task = results[0];
 
       if (!task) {

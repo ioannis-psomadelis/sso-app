@@ -1,18 +1,19 @@
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import { verifyAccessToken } from '../services/tokenVerification.js';
-import { ensureUserExists } from '../services/userSync.js';
+import { ensureUserExists, getUserRole } from '../services/userSync.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     userId?: string;
     provider?: 'local' | 'google';
+    userRole?: string;
   }
 }
 
 /**
  * Auth middleware plugin for Fastify
- * Verifies Bearer token from Authorization header and adds userId/provider to request
+ * Verifies Bearer token from Authorization header and adds userId/provider/role to request
  * Returns 401 if token is missing or invalid
  */
 const authMiddleware: FastifyPluginAsync = async (fastify) => {
@@ -35,6 +36,8 @@ const authMiddleware: FastifyPluginAsync = async (fastify) => {
       await ensureUserExists(result);
       request.userId = result.sub;
       request.provider = result.provider;
+      // Fetch user role from database for RBAC
+      request.userRole = await getUserRole(result.sub);
     } catch (error) {
       fastify.log.error({ err: error }, 'Token verification failed');
       return reply.status(401).send({

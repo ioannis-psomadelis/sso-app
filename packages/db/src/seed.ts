@@ -54,14 +54,50 @@ async function seed() {
   await db.delete(oauthClients);
   await db.delete(users);
 
-  // Create demo user
+  // Create demo user (regular user)
   const userId = uuid();
   await db.insert(users).values({
     id: userId,
     email: 'demo@example.com',
     passwordHash: await bcrypt.hash('password123', BCRYPT_ROUNDS),
     name: 'John Doe',
+    role: 'user',
   });
+
+  // Create admin user
+  const adminId = uuid();
+  await db.insert(users).values({
+    id: adminId,
+    email: 'admin@example.com',
+    passwordHash: await bcrypt.hash('admin123', BCRYPT_ROUNDS),
+    name: 'Admin User',
+    role: 'admin',
+  });
+
+  // Create sample tasks for demo user
+  await db.insert(tasks).values([
+    { id: uuid(), userId, text: 'Complete OAuth 2.0 demo', completed: true },
+    { id: uuid(), userId, text: 'Review PKCE implementation', completed: false },
+    { id: uuid(), userId, text: 'Test SSO flow', completed: false },
+  ]);
+
+  // Create sample tasks for admin user
+  await db.insert(tasks).values([
+    { id: uuid(), userId: adminId, text: 'Review user permissions', completed: false },
+    { id: uuid(), userId: adminId, text: 'Audit security settings', completed: true },
+  ]);
+
+  // Create sample documents for demo user
+  await db.insert(documents).values([
+    { id: uuid(), userId, name: 'project-proposal.pdf', size: 245678, mimeType: 'application/pdf' },
+    { id: uuid(), userId, name: 'meeting-notes.docx', size: 34521, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+  ]);
+
+  // Create sample documents for admin user
+  await db.insert(documents).values([
+    { id: uuid(), userId: adminId, name: 'security-audit.pdf', size: 512000, mimeType: 'application/pdf' },
+    { id: uuid(), userId: adminId, name: 'user-report.xlsx', size: 128000, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  ]);
 
   // Create OAuth clients with BOTH local and production redirect URIs
   // This allows the same database to work for both environments
@@ -80,7 +116,9 @@ async function seed() {
     },
   ]);
 
-  console.log('Done. Demo user: demo@example.com / password123');
+  console.log('Done.');
+  console.log('Demo user: demo@example.com / password123 (role: user)');
+  console.log('Admin user: admin@example.com / admin123 (role: admin)');
   process.exit(0);
 }
 

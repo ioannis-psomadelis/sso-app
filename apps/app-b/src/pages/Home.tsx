@@ -1,45 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import {
   Button,
   buttonVariants,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Badge,
   Spinner,
   Input,
   toast,
-  GoogleLogo,
+  Skeleton,
+  FileText,
+  Check,
 } from '@repo/ui';
 import { useAuth, IDP_URL, OTHER_APP_URL } from '../context/AuthContext';
 import { createApiClient, type Document } from '@repo/auth-client';
+import { Landing } from '../components/Landing';
 
-// FileText icon component
-function FileText({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  );
-}
+const apiClient = createApiClient(IDP_URL);
 
 // Helper function to get random mime type for simulated uploads
 function getRandomMimeType(): string {
@@ -61,23 +40,55 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-export function Home() {
-  const { user, isAuthenticated, isLoading, login, loginWithGoogle, logout } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+// Skeleton for document list
+function DocumentsSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
+          <Skeleton className="size-10 rounded-lg" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          <Skeleton className="h-8 w-16 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  // Document management state
+// Skeleton for stats
+function StatsSkeleton() {
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="p-4 rounded-xl bg-muted/50 border border-border">
+          <Skeleton className="h-8 w-12 mb-1" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Home() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  // All hooks must be before any early return
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true); // Start true to show skeleton
   const [newDocName, setNewDocName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-
-  const apiClient = createApiClient(IDP_URL);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch documents on mount when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       loadDocuments();
+    } else {
+      setIsLoadingDocs(false);
     }
   }, [isAuthenticated]);
 
@@ -93,11 +104,9 @@ export function Home() {
     }
   };
 
-  const handleUpload = async () => {
-    if (!newDocName.trim()) {
-      toast.error('Please enter a document name');
-      return;
-    }
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDocName.trim()) return;
 
     setIsUploading(true);
     try {
@@ -109,6 +118,7 @@ export function Home() {
       setDocuments([doc, ...documents]);
       setNewDocName('');
       toast.success('Document uploaded');
+      inputRef.current?.focus();
     } catch {
       toast.error('Failed to upload document');
     } finally {
@@ -129,156 +139,132 @@ export function Home() {
     }
   };
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    await logout();
-    setIsLoggingOut(false);
-  };
-
-  // Auth loading is now handled by AuthOverlay at App level
+  // Wait for auth state to be determined (prevents flash)
   if (isLoading) {
     return null;
   }
 
+  // Show fancy landing page for unauthenticated users
   if (!isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center space-y-4">
-            <div className="size-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-xl font-bold mx-auto">
-              D
-            </div>
-            <div>
-              <CardTitle className="text-xl">Welcome to DocVault</CardTitle>
-              <CardDescription>Choose your sign-in method</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              onClick={login}
-              className="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white"
-              aria-label="Sign in with Custom SSO"
-            >
-              Custom SSO
-            </Button>
-            <Button
-              onClick={loginWithGoogle}
-              className="w-full"
-              variant="outline"
-              aria-label="Sign in with Google"
-            >
-              <GoogleLogo className="w-5 h-5" />
-              Sign in with Google
-            </Button>
-            <p className="text-xs text-center text-muted-foreground pt-2">
-              Watch the debug panel to see the OAuth 2.0 + PKCE flow
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <Landing />;
   }
+
+  const totalSize = documents.reduce((acc, doc) => acc + doc.size, 0);
+  const todayCount = documents.filter(d => {
+    const date = new Date(d.createdAt);
+    const now = new Date();
+    return date.toDateString() === now.toDateString();
+  }).length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Welcome, {user?.name?.split(' ')[0]}!</h1>
+      {/* Welcome Header */}
+      <div className="flex items-start gap-4">
+        <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-lg shadow-primary/25">
+          {user?.name?.charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
           <p className="text-muted-foreground">{user?.email}</p>
         </div>
-        <div className="flex gap-2">
-          <Link to="/settings" className={buttonVariants({ variant: 'ghost' })} aria-label="Go to settings">
-            Settings
-          </Link>
-          <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut} aria-label="Sign out">
-            {isLoggingOut && <Spinner />}
-            {isLoggingOut ? 'Signing out' : 'Sign out'}
-          </Button>
-        </div>
+        <Badge variant="secondary" className="hidden sm:flex">
+          <Check className="size-3 mr-1" />
+          Authenticated
+        </Badge>
       </div>
 
-      {/* Success Banner */}
-      <Card className="border-accent/20 bg-accent/5">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="text-2xl">✨</div>
-            <div className="flex-1 space-y-2">
-              <p className="font-medium">
-                Successfully authenticated
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Check the debug panel to see your tokens and API calls.
-              </p>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Badge variant="default">Access Token</Badge>
-                <Badge variant="secondary">ID Token</Badge>
-                <Badge variant="outline">Refresh Token</Badge>
-              </div>
-            </div>
+      {/* Stats */}
+      {isLoadingDocs ? (
+        <StatsSkeleton />
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+            <p className="text-2xl font-bold text-primary">{documents.length}</p>
+            <p className="text-xs text-muted-foreground">Total Docs</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+            <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{formatFileSize(totalSize)}</p>
+            <p className="text-xs text-muted-foreground">Storage Used</p>
+          </div>
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{todayCount}</p>
+            <p className="text-xs text-muted-foreground">Today</p>
+          </div>
+        </div>
+      )}
 
-      {/* Documents */}
+      {/* Documents Card */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Your Documents</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              Your Documents
+              {isLoadingDocs && <Spinner className="size-4" />}
+            </CardTitle>
+            {documents.length > 0 && !isLoadingDocs && (
+              <Badge variant="secondary" className="font-normal">
+                {documents.length} files
+              </Badge>
+            )}
           </div>
-          <CardDescription>
-            Upload and manage your documents with authenticated API calls
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Upload Form */}
-          <div className="flex gap-2">
+          <form onSubmit={handleUpload} className="flex gap-2">
             <Input
-              placeholder="Enter document name (e.g., Report.pdf)"
+              ref={inputRef}
+              type="text"
+              placeholder="Document name (e.g., Report.pdf)"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUpload()}
               disabled={isUploading}
+              className="flex-1"
             />
-            <Button
-              onClick={handleUpload}
-              disabled={isUploading || !newDocName.trim()}
-              aria-label="Upload document"
-            >
-              {isUploading && <Spinner />}
-              {isUploading ? 'Uploading' : 'Upload'}
+            <Button type="submit" disabled={isUploading || !newDocName.trim()} aria-label="Upload document">
+              {isUploading ? <Spinner className="size-4" /> : 'Upload'}
             </Button>
-          </div>
+          </form>
 
           {/* Documents List */}
           {isLoadingDocs ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner />
-              <span className="ml-2 text-sm text-muted-foreground">Loading documents...</span>
-            </div>
+            <DocumentsSkeleton />
           ) : documents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              No documents yet. Upload your first document above.
+            <div className="text-center py-12">
+              <div className="size-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <FileText className="size-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium mb-1">No documents yet</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload your first document above to get started
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
               {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-3 p-3 border border-border hover:bg-muted/50 transition-colors">
-                  <FileText className="size-4 text-muted-foreground shrink-0" />
+                <div
+                  key={doc.id}
+                  className={`flex items-center gap-3 p-4 rounded-xl border border-border hover:bg-muted/50 transition-all group ${
+                    deletingDocId === doc.id ? 'opacity-60' : ''
+                  }`}
+                >
+                  <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="size-5 text-primary" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.name}</p>
+                    <p className="font-medium truncate">{doc.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(doc.size)} • {new Date(doc.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleDelete(doc.id)}
                     disabled={deletingDocId === doc.id}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                     aria-label={`Delete document: ${doc.name}`}
                   >
-                    {deletingDocId === doc.id ? <Spinner /> : 'Delete'}
+                    {deletingDocId === doc.id ? <Spinner className="size-4" /> : 'Delete'}
                   </Button>
                 </div>
               ))}
@@ -287,24 +273,27 @@ export function Home() {
         </CardContent>
       </Card>
 
-      {/* SSO Demo */}
-      <Card className="bg-muted/50">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Try Single Sign-On</p>
+      {/* SSO Demo Card */}
+      <Card className="border-border bg-card">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="size-12 rounded-xl bg-accent flex items-center justify-center text-accent-foreground text-lg font-bold shadow-lg shadow-accent/25">
+              T
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Try Single Sign-On</p>
               <p className="text-sm text-muted-foreground">
-                Visit TaskFlow - you'll be logged in automatically!
+                Visit TaskFlow - you're already logged in!
               </p>
             </div>
             <a
               href={OTHER_APP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className={buttonVariants()}
+              className={buttonVariants({ variant: 'default' })}
               aria-label="Open TaskFlow application in new tab"
             >
-              Open TaskFlow →
+              Open TaskFlow
             </a>
           </div>
         </CardContent>

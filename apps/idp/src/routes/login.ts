@@ -40,6 +40,8 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       --ring: #18181b;
       --destructive: #ef4444;
       --radius: 0.5rem;
+      --violet: #8b5cf6;
+      --orange: #f97316;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -70,65 +72,78 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
       border: 1px solid var(--border);
       border-radius: var(--radius);
       width: 100%;
-      max-width: 340px;
+      max-width: 380px;
       overflow: hidden;
     }
     .card-header {
-      padding: 1.25rem 1.25rem 0;
+      padding: 1.5rem 1.5rem 0;
       text-align: center;
     }
     .logo {
-      width: 48px;
-      height: 48px;
-      background: var(--primary);
-      color: var(--primary-foreground);
-      border-radius: 0.75rem;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--violet), #6366f1);
+      color: white;
+      border-radius: 1rem;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 0.75rem;
-      font-size: 1.25rem;
+      margin: 0 auto 1rem;
+      font-size: 1.5rem;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     }
-    h1 { font-size: 1.125rem; font-weight: 600; }
-    .subtitle { color: var(--muted-foreground); font-size: 0.8125rem; margin-top: 0.25rem; }
-    .card-content { padding: 1.25rem; }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    .subtitle { color: var(--muted-foreground); font-size: 0.875rem; margin-top: 0.25rem; }
+    .card-content { padding: 1.5rem; }
+
     .form-group { margin-bottom: 0.875rem; }
+    .helper-text {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: var(--muted);
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+      line-height: 1.5;
+    }
+    .helper-text strong { color: var(--foreground); font-weight: 600; }
     label { display: block; font-size: 0.8125rem; font-weight: 500; margin-bottom: 0.375rem; }
     input[type="email"], input[type="password"] {
       width: 100%;
-      height: 2.25rem;
-      padding: 0 0.625rem;
+      height: 2.5rem;
+      padding: 0 0.75rem;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) - 2px);
       background: var(--input);
       color: var(--foreground);
-      font-size: 0.8125rem;
+      font-size: 0.875rem;
       outline: none;
     }
-    input:focus { border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+    input:focus { border-color: var(--ring); box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15); }
     .btn {
       width: 100%;
-      height: 2.25rem;
+      height: 2.5rem;
       background: var(--primary);
       color: var(--primary-foreground);
       border: none;
       border-radius: calc(var(--radius) - 2px);
-      font-size: 0.8125rem;
+      font-size: 0.875rem;
       font-weight: 500;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
+      transition: opacity 0.15s;
     }
     .btn:hover { opacity: 0.9; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .spinner { width: 0.875rem; height: 0.875rem; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 1s linear infinite; }
+    .spinner { width: 1rem; height: 1rem; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .error { background: #fef2f2; color: var(--destructive); padding: 0.625rem; border-radius: calc(var(--radius) - 2px); font-size: 0.8125rem; margin-bottom: 0.875rem; display: none; }
+    .error { background: #fef2f2; color: var(--destructive); padding: 0.75rem; border-radius: calc(var(--radius) - 2px); font-size: 0.8125rem; margin-bottom: 1rem; display: none; }
     @media (prefers-color-scheme: dark) { .error { background: #450a0a; } }
-    .footer { padding: 0.75rem 1.25rem; font-size: 0.75rem; color: var(--muted-foreground); border-top: 1px solid var(--border); background: var(--muted); text-align: center; }
-    .footer code { background: var(--border); padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: monospace; }
+    .footer { padding: 1rem 1.5rem; font-size: 0.75rem; color: var(--muted-foreground); border-top: 1px solid var(--border); background: var(--muted); text-align: center; }
   </style>
 </head>
 <body>
@@ -136,10 +151,11 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
     <div class="card-header">
       <div class="logo">ID</div>
       <h1>Sign In</h1>
-      <p class="subtitle">Identity Provider</p>
+      <p class="subtitle">SSO Demo Identity Provider</p>
     </div>
     <div class="card-content">
       <div id="error" class="error"></div>
+
       <form id="loginForm">
         <input type="hidden" name="client_id" value="${escapeHtml(params.client_id || '')}">
         <input type="hidden" name="redirect_uri" value="${escapeHtml(params.redirect_uri || '')}">
@@ -150,21 +166,28 @@ export const loginRoute: FastifyPluginAsync = async (fastify) => {
         <input type="hidden" name="nonce" value="${escapeHtml(params.nonce || '')}">
         <div class="form-group">
           <label for="email">Email</label>
-          <input type="email" id="email" name="email" value="demo@example.com" required>
+          <input type="email" id="email" name="email" placeholder="Enter your email" required>
         </div>
         <div class="form-group">
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" value="password123" required>
+          <input type="password" id="password" name="password" placeholder="Enter your password" required>
         </div>
         <button type="submit" id="submitBtn" class="btn">Sign In</button>
       </form>
+
+      <div class="helper-text">
+        <strong>Demo accounts:</strong><br>
+        User: demo@example.com / password123<br>
+        Admin: admin@example.com / admin123
+      </div>
     </div>
-    <div class="footer">Demo account pre-filled</div>
+    <div class="footer">SSO Demo Identity Provider</div>
   </div>
   <script>
     const form = document.getElementById('loginForm');
     const errorDiv = document.getElementById('error');
     const submitBtn = document.getElementById('submitBtn');
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorDiv.style.display = 'none';
