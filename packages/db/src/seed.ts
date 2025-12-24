@@ -12,13 +12,23 @@ import {
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcrypt';
 
-// Production URLs (Railway) - from environment or defaults
-const PROD_APP_A_URL = process.env.APP_A_URL || 'https://a-app.up.railway.app';
-const PROD_APP_B_URL = process.env.APP_B_URL || 'https://b-app.up.railway.app';
+// Railway production URLs (always included)
+const RAILWAY_APP_A_URL = 'https://a-app.up.railway.app';
+const RAILWAY_APP_B_URL = 'https://b-app.up.railway.app';
 
-// Local development URLs
+// Local development URLs (always included)
 const LOCAL_APP_A_URL = 'http://localhost:3001';
 const LOCAL_APP_B_URL = 'http://localhost:3002';
+
+// Build unique redirect URI lists (local + railway + any custom env URLs)
+function buildRedirectUris(localUrl: string, railwayUrl: string, envUrl?: string): string[] {
+  const uris = new Set([`${localUrl}/callback`, `${railwayUrl}/callback`]);
+  // Add custom URL from env if provided and different
+  if (envUrl && envUrl !== localUrl && envUrl !== railwayUrl) {
+    uris.add(`${envUrl}/callback`);
+  }
+  return Array.from(uris);
+}
 
 // Centralized bcrypt rounds
 const BCRYPT_ROUNDS = 12;
@@ -99,20 +109,23 @@ async function seed() {
     { id: uuid(), userId: adminId, name: 'user-report.xlsx', size: 128000, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
   ]);
 
-  // Create OAuth clients with BOTH local and production redirect URIs
-  // This allows the same database to work for both environments
+  // Create OAuth clients with local, Railway, and any custom redirect URIs
+  // This ensures the database works for both local dev and production
+  const appARedirectUris = buildRedirectUris(LOCAL_APP_A_URL, RAILWAY_APP_A_URL, process.env.APP_A_URL);
+  const appBRedirectUris = buildRedirectUris(LOCAL_APP_B_URL, RAILWAY_APP_B_URL, process.env.APP_B_URL);
+
   await db.insert(oauthClients).values([
     {
       id: 'app-a',
       secret: await bcrypt.hash('app-a-secret', BCRYPT_ROUNDS),
       name: 'TaskFlow',
-      redirectUris: JSON.stringify([`${LOCAL_APP_A_URL}/callback`, `${PROD_APP_A_URL}/callback`]),
+      redirectUris: JSON.stringify(appARedirectUris),
     },
     {
       id: 'app-b',
       secret: await bcrypt.hash('app-b-secret', BCRYPT_ROUNDS),
       name: 'DocVault',
-      redirectUris: JSON.stringify([`${LOCAL_APP_B_URL}/callback`, `${PROD_APP_B_URL}/callback`]),
+      redirectUris: JSON.stringify(appBRedirectUris),
     },
   ]);
 

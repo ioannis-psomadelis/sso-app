@@ -160,7 +160,7 @@ export function Home() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex items-start gap-4">
-        <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-lg shadow-primary/25">
+        <div className="size-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-blue-500/25">
           {user?.name?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex-1">
@@ -178,8 +178,8 @@ export function Home() {
         <StatsSkeleton />
       ) : (
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
-            <p className="text-2xl font-bold text-primary">{documents.length}</p>
+          <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{documents.length}</p>
             <p className="text-xs text-muted-foreground">Total Docs</p>
           </div>
           <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
@@ -247,8 +247,8 @@ export function Home() {
                     deletingDocId === doc.id ? 'opacity-60' : ''
                   }`}
                 >
-                  <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FileText className="size-5 text-primary" />
+                  <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <FileText className="size-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{doc.name}</p>
@@ -274,10 +274,10 @@ export function Home() {
       </Card>
 
       {/* SSO Demo Card */}
-      <Card className="border-border bg-card">
+      <Card className="border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/5">
         <CardContent className="p-5">
           <div className="flex items-center gap-4">
-            <div className="size-12 rounded-xl bg-accent flex items-center justify-center text-accent-foreground text-lg font-bold shadow-lg shadow-accent/25">
+            <div className="size-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-violet-500/25">
               T
             </div>
             <div className="flex-1">

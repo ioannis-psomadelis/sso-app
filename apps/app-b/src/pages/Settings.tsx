@@ -198,7 +198,7 @@ export function Settings() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <div className="size-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold shadow-lg shadow-primary/25">
+        <div className="size-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-blue-500/25">
           {displayUser?.name?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex-1">
@@ -216,7 +216,7 @@ export function Settings() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
-              <User className="size-5 text-primary" />
+              <User className="size-5 text-blue-600 dark:text-blue-400" />
               Profile Information
             </CardTitle>
             {!isEditing && (
@@ -386,12 +386,12 @@ export function Settings() {
               <div className={`size-2 rounded-full ${tokens.accessToken ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
               <span className="text-sm font-medium">Access Token</span>
             </div>
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.idToken ? 'bg-primary/10 border border-primary/20' : 'bg-muted'}`}>
-              <div className={`size-2 rounded-full ${tokens.idToken ? 'bg-primary' : 'bg-muted-foreground'}`} />
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.idToken ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-muted'}`}>
+              <div className={`size-2 rounded-full ${tokens.idToken ? 'bg-blue-500' : 'bg-muted-foreground'}`} />
               <span className="text-sm font-medium">ID Token</span>
             </div>
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.refreshToken ? 'bg-accent/50 border border-accent' : 'bg-muted'}`}>
-              <div className={`size-2 rounded-full ${tokens.refreshToken ? 'bg-accent-foreground' : 'bg-muted-foreground'}`} />
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.refreshToken ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-muted'}`}>
+              <div className={`size-2 rounded-full ${tokens.refreshToken ? 'bg-cyan-500' : 'bg-muted-foreground'}`} />
               <span className="text-sm font-medium">Refresh Token</span>
             </div>
           </div>

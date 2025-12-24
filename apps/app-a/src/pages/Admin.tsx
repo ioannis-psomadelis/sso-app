@@ -202,13 +202,13 @@ export function Admin() {
                   onClick={() => setSelectedUserId(user.id)}
                   className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
                     selectedUserId === user.id
-                      ? 'bg-primary text-primary-foreground shadow-md'
+                      ? 'bg-violet-600 text-white shadow-md'
                       : 'hover:bg-muted'
                   }`}
                 >
                   <div className={`size-9 rounded-full flex items-center justify-center text-sm font-medium ${
                     selectedUserId === user.id
-                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      ? 'bg-white/20 text-white'
                       : 'bg-muted text-muted-foreground'
                   }`}>
                     {user.name.charAt(0).toUpperCase()}
@@ -216,7 +216,7 @@ export function Admin() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{user.name}</p>
                     <p className={`text-xs truncate ${
-                      selectedUserId === user.id ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      selectedUserId === user.id ? 'text-white/70' : 'text-muted-foreground'
                     }`}>
                       {user.email}
                     </p>
@@ -227,7 +227,7 @@ export function Admin() {
                     </Badge>
                   )}
                   <ChevronRight className={`size-4 ${
-                    selectedUserId === user.id ? 'text-primary-foreground/50' : 'text-muted-foreground/50'
+                    selectedUserId === user.id ? 'text-white/50' : 'text-muted-foreground/50'
                   }`} />
                 </button>
               ))}

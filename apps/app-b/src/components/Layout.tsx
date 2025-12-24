@@ -14,7 +14,14 @@ export function Layout({ children }: LayoutProps) {
   const { tokens, decodedTokens, accessTokenExpiry, isAdmin, isAuthenticated, user, login, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
   const location = useLocation();
+
+  const handleLogin = () => {
+    setIsLoggingIn(true);
+    login();
+    // Loading state will be cleared by page navigation
+  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -107,10 +114,12 @@ export function Layout({ children }: LayoutProps) {
               </>
             ) : (
               <Button
-                onClick={login}
+                onClick={handleLogin}
+                disabled={isLoggingIn}
                 size="sm"
                 className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
               >
+                {isLoggingIn ? <Spinner className="size-4 mr-1.5" /> : null}
                 Sign in
               </Button>
             )}

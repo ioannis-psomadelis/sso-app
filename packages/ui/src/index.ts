@@ -31,6 +31,8 @@ export { ProviderSelector, ProviderDivider, GoogleLogo, type Provider } from "./
 
 // Icons from lucide
 export {
+  Activity,
+  ArrowRight,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -46,6 +48,7 @@ export {
   FileText,
   Key,
   Loader2,
+  Lock,
   LogOut,
   Moon,
   PanelLeft,
@@ -55,9 +58,12 @@ export {
   Settings,
   Shield,
   Sun,
+  Terminal,
   Timer,
   Trash2,
+  Unlock,
   User,
   Users,
-  X
+  X,
+  Zap
 } from "lucide-react"
