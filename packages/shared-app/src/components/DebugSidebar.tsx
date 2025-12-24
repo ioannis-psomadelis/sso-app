@@ -28,7 +28,9 @@ import {
   Check,
   X,
   Clock,
+  Copy,
 } from '@repo/ui';
+import { useAppTheme } from '../context/ThemeContext';
 
 interface DebugEvent {
   id: string;
@@ -59,19 +61,13 @@ interface DebugSidebarProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-// DocVault theme - blue/cyan accents
-const theme = {
-  gradient: 'from-blue-500 to-cyan-600',
-  ring: 'ring-blue-500/30',
-  glow: 'shadow-blue-500/20',
-  accentBg: 'bg-blue-500',
-  accentText: 'text-blue-400',
-  hoverText: 'group-hover:text-blue-400',
-};
-
 export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry, isOpen, onOpenChange }: DebugSidebarProps) {
+  const { theme } = useAppTheme();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(false);
+  // Track animation state for mobile
+  const [isAnimatingOut, setIsAnimatingOut] = React.useState(false);
+  const [shouldRender, setShouldRender] = React.useState(false);
 
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -80,22 +76,57 @@ export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry,
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Mobile: controlled by parent via isOpen prop
+  // Handle mobile open/close with animation
+  React.useEffect(() => {
+    if (isMobile) {
+      if (isOpen) {
+        setShouldRender(true);
+        setIsAnimatingOut(false);
+      } else if (shouldRender) {
+        setIsAnimatingOut(true);
+        const timer = setTimeout(() => {
+          setShouldRender(false);
+          setIsAnimatingOut(false);
+        }, 300); // Match animation duration
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isOpen, isMobile, shouldRender]);
+
+  const handleMobileClose = () => {
+    setIsAnimatingOut(true);
+    setTimeout(() => {
+      onOpenChange?.(false);
+    }, 300);
+  };
+
+  // Mobile: controlled by parent via isOpen prop with animations
   if (isMobile) {
-    if (!isOpen) return null;
+    if (!shouldRender) return null;
 
     return (
       <>
         {/* Backdrop */}
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => onOpenChange?.(false)}
+          className={cn(
+            "fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300",
+            isAnimatingOut ? "opacity-0" : "opacity-100"
+          )}
+          onClick={handleMobileClose}
+          aria-hidden="true"
         />
         {/* Sidebar Sheet */}
-        <aside className="fixed right-0 top-0 bottom-0 w-full max-w-[400px] bg-sidebar flex flex-col z-50 md:hidden animate-in slide-in-from-right duration-300 border-l border-sidebar-border">
+        <aside
+          className={cn(
+            "fixed right-0 top-0 bottom-0 w-[calc(100%-3rem)] max-w-[400px] bg-sidebar flex flex-col z-50 md:hidden border-l border-sidebar-border",
+            "transition-transform duration-300 ease-out",
+            isAnimatingOut ? "translate-x-full" : "translate-x-0"
+          )}
+          aria-label="Debug Console"
+        >
           <DebugHeader
             eventsCount={events.length}
-            onClose={() => onOpenChange?.(false)}
+            onClose={handleMobileClose}
           />
           <DebugContent
             events={events}
@@ -108,53 +139,75 @@ export function DebugSidebar({ events, tokens, decodedTokens, accessTokenExpiry,
     );
   }
 
-  // Desktop: self-managed collapsed state
-  if (isCollapsed) {
-    return (
+  // Desktop: animated sidebar with collapse
+  return (
+    <>
+      {/* Collapsed state - floating button */}
       <button
         onClick={() => setIsCollapsed(false)}
+        aria-label="Open Debug Console"
         className={cn(
           "fixed right-0 top-1/2 -translate-y-1/2 z-20 hidden md:flex",
-          "h-24 w-8 rounded-l-xl",
+          "h-24 rounded-l-xl",
           "bg-sidebar border border-r-0 border-sidebar-border",
           "items-center justify-center",
-          "hover:w-10 transition-all duration-200",
-          "group"
+          "transition-all duration-300 ease-out",
+          "group focus-visible:ring-2 focus-visible:ring-offset-2",
+          theme.ringFocus,
+          isCollapsed
+            ? "w-8 opacity-100 translate-x-0 hover:w-10"
+            : "w-0 opacity-0 translate-x-full pointer-events-none"
         )}
       >
-        <div className="flex flex-col items-center gap-2">
-          <PanelLeft className={cn("size-4 text-muted-foreground", theme.hoverText, "transition-colors")} />
-          <div className={cn("w-1 h-8 rounded-full bg-gradient-to-b", theme.gradient, "opacity-60")} />
+        <div className={cn(
+          "flex flex-col items-center gap-2 transition-opacity duration-200",
+          isCollapsed ? "opacity-100" : "opacity-0"
+        )}>
+          <PanelLeft className={cn("size-4 text-muted-foreground transition-colors", theme.hoverText)} />
+          <div className={cn("w-1 h-8 rounded-full bg-gradient-to-b opacity-60", theme.gradient)} />
         </div>
       </button>
-    );
-  }
 
-  return (
-    <aside className="w-[380px] bg-sidebar flex flex-col shrink-0 h-screen sticky top-0 hidden md:flex border-l border-sidebar-border">
-      <DebugHeader
-        eventsCount={events.length}
-        onClose={() => setIsCollapsed(true)}
-      />
-      <DebugContent
-        events={events}
-        tokens={tokens}
-        decodedTokens={decodedTokens}
-        accessTokenExpiry={accessTokenExpiry}
-      />
-    </aside>
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "bg-sidebar flex flex-col shrink-0 h-screen sticky top-0 hidden md:flex border-l border-sidebar-border",
+          "transition-all duration-300 ease-out overflow-hidden",
+          isCollapsed ? "w-0 opacity-0" : "w-[380px] opacity-100"
+        )}
+        aria-label="Debug Console"
+      >
+        <div className={cn(
+          "w-[380px] h-full flex flex-col transition-transform duration-300 ease-out",
+          isCollapsed ? "translate-x-full" : "translate-x-0"
+        )}>
+          <DebugHeader
+            eventsCount={events.length}
+            onClose={() => setIsCollapsed(true)}
+          />
+          <DebugContent
+            events={events}
+            tokens={tokens}
+            decodedTokens={decodedTokens}
+            accessTokenExpiry={accessTokenExpiry}
+          />
+        </div>
+      </aside>
+    </>
   );
 }
 
 function DebugHeader({ eventsCount, onClose }: { eventsCount: number; onClose: () => void }) {
+  const { theme } = useAppTheme();
+
   return (
     <div className="relative shrink-0">
       <div className="h-14 border-b border-sidebar-border px-4 flex items-center justify-between relative">
         <div className="flex items-center gap-3">
           <div className={cn(
-            "size-8 rounded-lg flex items-center justify-center",
-            "bg-gradient-to-br", theme.gradient,
-            "shadow-lg", theme.glow
+            "size-8 rounded-lg flex items-center justify-center shadow-lg",
+            theme.gradientBg,
+            theme.glow
           )}>
             <Terminal className="size-4 text-white" />
           </div>
@@ -243,7 +296,10 @@ function DebugContent({ events, tokens, decodedTokens, accessTokenExpiry }: Debu
   );
 }
 
+
 function TimelineView({ events }: { events: DebugEvent[] }) {
+  const { theme } = useAppTheme();
+
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 p-8 text-center">
@@ -252,8 +308,18 @@ function TimelineView({ events }: { events: DebugEvent[] }) {
         </div>
         <p className="font-mono text-sm font-medium text-foreground">No events yet</p>
         <p className="text-xs text-muted-foreground mt-1.5 font-mono">
-          OAuth flow events will appear here
+          Click "Sign in" to see the OAuth 2.0 + PKCE flow
         </p>
+        <div className="mt-6 p-4 rounded-xl bg-muted/50 border border-border text-left max-w-[280px]">
+          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-2">OAuth 2.0 Flow Steps:</p>
+          <ol className="text-xs text-muted-foreground space-y-1.5">
+            <li className="flex items-center gap-2"><span className="size-4 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-[10px] font-bold">1</span> Generate PKCE pair</li>
+            <li className="flex items-center gap-2"><span className={cn("size-4 rounded-full flex items-center justify-center text-[10px] font-bold", theme.eventBg, theme.accentText)}>2</span> Redirect to IdP</li>
+            <li className="flex items-center gap-2"><span className="size-4 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center text-[10px] font-bold">3</span> Receive auth code</li>
+            <li className="flex items-center gap-2"><span className="size-4 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center text-[10px] font-bold">4</span> Exchange for tokens</li>
+            <li className="flex items-center gap-2"><span className={cn("size-4 rounded-full flex items-center justify-center text-[10px] font-bold", theme.apiBg, theme.apiText)}>5</span> Make API calls</li>
+          </ol>
+        </div>
       </div>
     );
   }
@@ -262,20 +328,23 @@ function TimelineView({ events }: { events: DebugEvent[] }) {
   const reversedEvents = [...events].reverse();
 
   return (
-    <div className="p-3">
-      {reversedEvents.map((event, index) => (
-        <EventItem
-          key={event.id}
-          event={event}
-          isFirst={index === 0}
-          isLast={index === reversedEvents.length - 1}
-        />
-      ))}
+    <div>
+      <div className="p-3">
+        {reversedEvents.map((event, index) => (
+          <EventItem
+            key={event.id}
+            event={event}
+            isFirst={index === 0}
+            isLast={index === reversedEvents.length - 1}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 function EventItem({ event, isFirst, isLast }: { event: DebugEvent; isFirst: boolean; isLast: boolean }) {
+  const { theme } = useAppTheme();
   const [isOpen, setIsOpen] = React.useState(false);
   const hasData = event.data && Object.keys(event.data).length > 0;
 
@@ -284,12 +353,12 @@ function EventItem({ event, isFirst, isLast }: { event: DebugEvent; isFirst: boo
       case 'pkce_generated':
         return { icon: Lock, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/30' };
       case 'redirect_to_idp':
-        return { icon: ArrowRight, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/30' };
+        return { icon: ArrowRight, color: theme.eventText, bg: theme.eventBg, border: theme.eventBorder };
       case 'code_received':
         return { icon: Zap, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' };
       case 'token_exchange_start':
       case 'token_refresh_start':
-        return { icon: RefreshCw, color: 'text-cyan-500', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30' };
+        return { icon: RefreshCw, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/30' };
       case 'token_exchange_success':
       case 'token_refresh_success':
       case 'api_success':
@@ -299,7 +368,7 @@ function EventItem({ event, isFirst, isLast }: { event: DebugEvent; isFirst: boo
       case 'api_error':
         return { icon: X, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/30' };
       case 'api_call':
-        return { icon: Activity, color: 'text-sky-500', bg: 'bg-sky-500/10', border: 'border-sky-500/30' };
+        return { icon: Activity, color: theme.apiText, bg: theme.apiBg, border: theme.apiBorder };
       case 'logout':
         return { icon: Unlock, color: 'text-muted-foreground', bg: 'bg-muted', border: 'border-border' };
       default:
@@ -332,7 +401,7 @@ function EventItem({ event, isFirst, isLast }: { event: DebugEvent; isFirst: boo
               "size-9 rounded-lg flex items-center justify-center shrink-0 relative z-10",
               "border-2 bg-background transition-all",
               config.border,
-              isFirst && "ring-2 ring-offset-2 ring-offset-sidebar", isFirst && theme.ring
+              isFirst && `ring-2 ring-offset-2 ring-offset-sidebar ${theme.ring}`
             )}>
               <Icon className={cn("size-4", config.color)} />
             </div>
@@ -454,8 +523,17 @@ function TokenCard({
   expiry: Date | null;
   variant: 'primary' | 'secondary' | 'muted';
 }) {
+  const { theme } = useAppTheme();
   const [isOpen, setIsOpen] = React.useState(false);
   const [timeLeft, setTimeLeft] = React.useState<string>('');
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    if (!token) return;
+    await navigator.clipboard.writeText(token);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   React.useEffect(() => {
     if (!expiry) return;
@@ -495,16 +573,16 @@ function TokenCard({
 
   const variantStyles = {
     primary: {
-      border: 'border-blue-500/20',
-      bg: 'bg-blue-500/5',
-      iconBg: 'bg-gradient-to-br from-blue-500 to-cyan-600',
-      glow: 'shadow-blue-500/10',
+      border: theme.accentBorder,
+      bg: theme.accentBgLight.replace('bg-', 'bg-').replace('/10', '/5'),
+      iconBg: `bg-gradient-to-br ${theme.gradient}`,
+      glow: theme.glow,
     },
     secondary: {
-      border: 'border-cyan-500/20',
-      bg: 'bg-cyan-500/5',
-      iconBg: 'bg-gradient-to-br from-cyan-500 to-teal-600',
-      glow: 'shadow-cyan-500/10',
+      border: 'border-purple-500/20',
+      bg: 'bg-purple-500/5',
+      iconBg: 'bg-gradient-to-br from-purple-500 to-pink-600',
+      glow: 'shadow-purple-500/10',
     },
     muted: {
       border: 'border-border',
@@ -561,6 +639,26 @@ function TokenCard({
         <CollapsibleContent>
           <Separator />
           <div className="p-4 space-y-3">
+            {/* Copy Token Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              className="w-full text-xs"
+            >
+              {copied ? (
+                <>
+                  <Check className="size-3 mr-1.5 text-emerald-500" />
+                  Copied to clipboard!
+                </>
+              ) : (
+                <>
+                  <Copy className="size-3 mr-1.5" />
+                  Copy Raw Token
+                </>
+              )}
+            </Button>
+
             {decoded ? (
               <>
                 <div>

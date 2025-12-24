@@ -381,18 +381,18 @@ export function Settings() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Token Status */}
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.accessToken ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-muted'}`}>
-              <div className={`size-2 rounded-full ${tokens.accessToken ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
-              <span className="text-sm font-medium">Access Token</span>
+              <div className={`size-2 rounded-full shrink-0 ${tokens.accessToken ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+              <span className="text-sm font-medium truncate">Access Token</span>
             </div>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.idToken ? 'bg-violet-500/10 border border-violet-500/20' : 'bg-muted'}`}>
-              <div className={`size-2 rounded-full ${tokens.idToken ? 'bg-violet-500' : 'bg-muted-foreground'}`} />
-              <span className="text-sm font-medium">ID Token</span>
+              <div className={`size-2 rounded-full shrink-0 ${tokens.idToken ? 'bg-violet-500' : 'bg-muted-foreground'}`} />
+              <span className="text-sm font-medium truncate">ID Token</span>
             </div>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${tokens.refreshToken ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-muted'}`}>
-              <div className={`size-2 rounded-full ${tokens.refreshToken ? 'bg-purple-500' : 'bg-muted-foreground'}`} />
-              <span className="text-sm font-medium">Refresh Token</span>
+              <div className={`size-2 rounded-full shrink-0 ${tokens.refreshToken ? 'bg-purple-500' : 'bg-muted-foreground'}`} />
+              <span className="text-sm font-medium truncate">Refresh Token</span>
             </div>
           </div>
 

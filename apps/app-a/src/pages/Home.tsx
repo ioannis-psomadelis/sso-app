@@ -17,7 +17,7 @@ import {
 } from '@repo/ui';
 import { useAuth, IDP_URL, OTHER_APP_URL } from '../context/AuthContext';
 import { createApiClient, type Task } from '@repo/auth-client';
-import { Landing } from '../components/Landing';
+import { Landing, useAppTheme, getOtherAppTheme } from '@repo/shared-app';
 
 const apiClient = createApiClient(IDP_URL);
 
@@ -51,7 +51,9 @@ function StatsSkeleton() {
 }
 
 export function Home() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, login, loginWithGoogle } = useAuth();
+  const { theme } = useAppTheme();
+  const otherTheme = getOtherAppTheme(theme);
 
   // All hooks must be before any early return
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -133,7 +135,7 @@ export function Home() {
 
   // Show fancy landing page for unauthenticated users
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Landing onLogin={login} onLoginWithGoogle={loginWithGoogle} />;
   }
 
   const completedCount = tasks.filter(t => t.completed).length;
@@ -143,7 +145,7 @@ export function Home() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex items-start gap-4">
-        <div className="size-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-violet-500/25">
+        <div className={`size-14 rounded-2xl bg-gradient-to-br ${theme.gradient} flex items-center justify-center text-white text-xl font-bold shadow-lg ${theme.shadow}`}>
           {user?.name?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex-1">
@@ -161,8 +163,8 @@ export function Home() {
         <StatsSkeleton />
       ) : (
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-violet-500/10 border border-violet-500/20">
-            <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">{tasks.length}</p>
+          <div className={`p-4 rounded-xl ${theme.accentBgLight} border ${theme.accentBorder}`}>
+            <p className={`text-2xl font-bold ${theme.accentTextDark} dark:${theme.accentText}`}>{tasks.length}</p>
             <p className="text-xs text-muted-foreground">Total Tasks</p>
           </div>
           <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
@@ -267,16 +269,16 @@ export function Home() {
       </Card>
 
       {/* SSO Demo Card */}
-      <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-cyan-500/5">
+      <Card className={`${otherTheme.cardBorder} ${otherTheme.cardBg}`}>
         <CardContent className="p-5">
           <div className="flex items-center gap-4">
-            <div className="size-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-blue-500/25">
-              D
+            <div className={`size-12 rounded-xl bg-gradient-to-br ${otherTheme.gradient} flex items-center justify-center text-white text-lg font-bold shadow-lg ${otherTheme.shadow}`}>
+              {otherTheme.shortName}
             </div>
             <div className="flex-1">
               <p className="font-semibold">Try Single Sign-On</p>
               <p className="text-sm text-muted-foreground">
-                Visit DocVault - you're already logged in!
+                Visit {otherTheme.name} - you're already logged in!
               </p>
             </div>
             <a
@@ -284,9 +286,9 @@ export function Home() {
               target="_blank"
               rel="noopener noreferrer"
               className={buttonVariants({ variant: 'default' })}
-              aria-label="Open DocVault application in new tab"
+              aria-label={`Open ${otherTheme.name} application in new tab`}
             >
-              Open DocVault
+              Open {otherTheme.name}
             </a>
           </div>
         </CardContent>

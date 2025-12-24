@@ -2,3 +2,5 @@
 
 /* Tell Tailwind to scan this app's source files */
 @source "./**/*.{ts,tsx}";
+/* Also scan shared-app package for classes */
+@source "../../../packages/shared-app/src/**/*.{ts,tsx}";

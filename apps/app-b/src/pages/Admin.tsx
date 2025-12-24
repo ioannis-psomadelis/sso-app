@@ -15,6 +15,9 @@ import {
   Shield,
   FileText,
   ChevronRight,
+  Menu,
+  X,
+  cn,
 } from '@repo/ui';
 import { useAuth, IDP_URL } from '../context/AuthContext';
 import { createApiClient, type AdminUser, type AdminDocument } from '@repo/auth-client';
@@ -87,6 +90,41 @@ export function Admin() {
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
+  // Mobile sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarAnimatingOut, setSidebarAnimatingOut] = useState(false);
+  const [sidebarShouldRender, setSidebarShouldRender] = useState(false);
+
+  // Handle mobile sidebar open/close with animation
+  useEffect(() => {
+    if (sidebarOpen) {
+      setSidebarShouldRender(true);
+      setSidebarAnimatingOut(false);
+    } else if (sidebarShouldRender) {
+      setSidebarAnimatingOut(true);
+      const timer = setTimeout(() => {
+        setSidebarShouldRender(false);
+        setSidebarAnimatingOut(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [sidebarOpen, sidebarShouldRender]);
+
+  const handleSidebarClose = () => {
+    setSidebarAnimatingOut(true);
+    setTimeout(() => {
+      setSidebarOpen(false);
+    }, 300);
+  };
+
+  const handleUserSelect = (userId: string) => {
+    setSelectedUserId(userId);
+    // Close sidebar on mobile after selection
+    if (window.innerWidth < 768) {
+      handleSidebarClose();
+    }
+  };
+
   // Fetch data on mount
   useEffect(() => {
     if (isAuthenticated && isAdmin) {
@@ -145,10 +183,83 @@ export function Admin() {
   const selectedUser = selectedUserId ? users.find(u => u.id === selectedUserId) : null;
   const userDocuments = selectedUserId ? documents.filter(d => d.owner.id === selectedUserId) : [];
 
+  // Sidebar content component to avoid duplication
+  const SidebarContent = ({ onUserSelect }: { onUserSelect: (id: string) => void }) => (
+    <>
+      {/* Stats */}
+      <div className="p-4 border-b border-border">
+        {isLoadingUsers || isLoadingDocuments ? (
+          <StatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{users.length}</p>
+              <p className="text-xs text-muted-foreground">Users</p>
+            </div>
+            <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+              <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{documents.length}</p>
+              <p className="text-xs text-muted-foreground">Documents</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Users List */}
+      <div className="flex-1 overflow-auto p-2">
+        <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          All Users
+        </p>
+        {isLoadingUsers ? (
+          <UsersSkeleton />
+        ) : users.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No users found</p>
+        ) : (
+          <div className="space-y-1">
+            {users.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => onUserSelect(user.id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
+                  selectedUserId === user.id
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                <div className={`size-9 rounded-full flex items-center justify-center text-sm font-medium ${
+                  selectedUserId === user.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{user.name}</p>
+                  <p className={`text-xs truncate ${
+                    selectedUserId === user.id ? 'text-white/70' : 'text-muted-foreground'
+                  }`}>
+                    {user.email}
+                  </p>
+                </div>
+                {user.role === 'admin' && (
+                  <Badge variant={selectedUserId === user.id ? 'secondary' : 'default'} className="text-[10px] px-1.5">
+                    Admin
+                  </Badge>
+                )}
+                <ChevronRight className={`size-4 ${
+                  selectedUserId === user.id ? 'text-white/50' : 'text-muted-foreground/50'
+                }`} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex">
-      {/* Sidebar */}
-      <aside className="w-72 border-r border-border bg-muted/30 flex flex-col">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-72 border-r border-border bg-muted/30 flex-col">
         {/* Sidebar Header */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-3">
@@ -161,88 +272,97 @@ export function Admin() {
             </div>
           </div>
         </div>
-
-        {/* Stats */}
-        <div className="p-4 border-b border-border">
-          {isLoadingUsers || isLoadingDocuments ? (
-            <StatsSkeleton />
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{users.length}</p>
-                <p className="text-xs text-muted-foreground">Users</p>
-              </div>
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{documents.length}</p>
-                <p className="text-xs text-muted-foreground">Documents</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Users List */}
-        <div className="flex-1 overflow-auto p-2">
-          <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            All Users
-          </p>
-          {isLoadingUsers ? (
-            <UsersSkeleton />
-          ) : users.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No users found</p>
-          ) : (
-            <div className="space-y-1">
-              {users.map((user) => (
-                <button
-                  key={user.id}
-                  onClick={() => setSelectedUserId(user.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
-                    selectedUserId === user.id
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'hover:bg-muted'
-                  }`}
-                >
-                  <div className={`size-9 rounded-full flex items-center justify-center text-sm font-medium ${
-                    selectedUserId === user.id
-                      ? 'bg-white/20 text-white'
-                      : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{user.name}</p>
-                    <p className={`text-xs truncate ${
-                      selectedUserId === user.id ? 'text-white/70' : 'text-muted-foreground'
-                    }`}>
-                      {user.email}
-                    </p>
-                  </div>
-                  {user.role === 'admin' && (
-                    <Badge variant={selectedUserId === user.id ? 'secondary' : 'default'} className="text-[10px] px-1.5">
-                      Admin
-                    </Badge>
-                  )}
-                  <ChevronRight className={`size-4 ${
-                    selectedUserId === user.id ? 'text-white/50' : 'text-muted-foreground/50'
-                  }`} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <SidebarContent onUserSelect={setSelectedUserId} />
       </aside>
+
+      {/* Mobile Sidebar */}
+      {sidebarShouldRender && (
+        <>
+          {/* Backdrop */}
+          <div
+            className={cn(
+              "fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300",
+              sidebarAnimatingOut ? "opacity-0" : "opacity-100"
+            )}
+            onClick={handleSidebarClose}
+            aria-hidden="true"
+          />
+          {/* Sidebar Sheet */}
+          <aside
+            className={cn(
+              "fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border flex flex-col z-50 md:hidden",
+              "transition-transform duration-300 ease-out",
+              sidebarAnimatingOut ? "-translate-x-full" : "translate-x-0"
+            )}
+          >
+            {/* Sidebar Header */}
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                  <Shield className="size-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="font-bold text-lg">Admin</h1>
+                  <p className="text-xs text-muted-foreground">Manage users & docs</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSidebarClose}
+                className="size-8"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <SidebarContent onUserSelect={handleUserSelect} />
+          </aside>
+        </>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
+        {/* Mobile Header */}
+        <div className="md:hidden p-4 border-b border-border flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+            className="size-9"
+          >
+            <Menu className="size-5" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <Shield className="size-4 text-white" />
+            </div>
+            <span className="font-semibold">Admin</span>
+          </div>
+          {selectedUser && (
+            <Badge variant="secondary" className="ml-auto">
+              {selectedUser.name}
+            </Badge>
+          )}
+        </div>
+
         {!selectedUser ? (
-          <div className="h-full flex items-center justify-center">
+          <div className="h-full flex items-center justify-center p-4">
             <div className="text-center">
               <div className="size-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                 <Users className="size-8 text-muted-foreground" />
               </div>
               <h2 className="text-lg font-medium mb-1">Select a User</h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-4">
                 Choose a user from the sidebar to view their details and documents
               </p>
+              <Button
+                variant="outline"
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden"
+              >
+                <Users className="size-4 mr-2" />
+                View Users
+              </Button>
             </div>
           </div>
         ) : (

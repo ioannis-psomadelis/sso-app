@@ -23,6 +23,9 @@ importers:
       '@repo/auth-client':
         specifier: workspace:*
         version: link:../../packages/auth-client
+      '@repo/shared-app':
+        specifier: workspace:*
+        version: link:../../packages/shared-app
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -66,6 +69,9 @@ importers:
       '@repo/auth-client':
         specifier: workspace:*
         version: link:../../packages/auth-client
+      '@repo/shared-app':
+        specifier: workspace:*
+        version: link:../../packages/shared-app
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -223,6 +229,34 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/shared-app:
+    dependencies:
+      '@repo/auth-client':
+        specifier: workspace:*
+        version: link:../auth-client
+      '@repo/ui':
+        specifier: workspace:*
+        version: link:../ui
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-router-dom:
+        specifier: ^7.1.1
+        version: 7.9.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.18
+        version: 18.3.27
+      '@types/react-dom':
+        specifier: ^18.3.5
+        version: 18.3.7(@types/react@18.3.27)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

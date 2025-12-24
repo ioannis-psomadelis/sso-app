@@ -16,7 +16,7 @@ import {
 } from '@repo/ui';
 import { useAuth, IDP_URL, OTHER_APP_URL } from '../context/AuthContext';
 import { createApiClient, type Document } from '@repo/auth-client';
-import { Landing } from '../components/Landing';
+import { Landing, useAppTheme, getOtherAppTheme } from '@repo/shared-app';
 
 const apiClient = createApiClient(IDP_URL);
 
@@ -73,7 +73,9 @@ function StatsSkeleton() {
 }
 
 export function Home() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, login, loginWithGoogle } = useAuth();
+  const { theme } = useAppTheme();
+  const otherTheme = getOtherAppTheme(theme);
 
   // All hooks must be before any early return
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -146,7 +148,7 @@ export function Home() {
 
   // Show fancy landing page for unauthenticated users
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Landing onLogin={login} onLoginWithGoogle={loginWithGoogle} />;
   }
 
   const totalSize = documents.reduce((acc, doc) => acc + doc.size, 0);
@@ -160,7 +162,7 @@ export function Home() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex items-start gap-4">
-        <div className="size-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-blue-500/25">
+        <div className={`size-14 rounded-2xl bg-gradient-to-br ${theme.gradient} flex items-center justify-center text-white text-xl font-bold shadow-lg ${theme.shadow}`}>
           {user?.name?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex-1">
@@ -178,8 +180,8 @@ export function Home() {
         <StatsSkeleton />
       ) : (
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{documents.length}</p>
+          <div className={`p-4 rounded-xl ${theme.accentBgLight} border ${theme.accentBorder}`}>
+            <p className={`text-2xl font-bold ${theme.accentTextDark} dark:${theme.accentText}`}>{documents.length}</p>
             <p className="text-xs text-muted-foreground">Total Docs</p>
           </div>
           <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
@@ -247,8 +249,8 @@ export function Home() {
                     deletingDocId === doc.id ? 'opacity-60' : ''
                   }`}
                 >
-                  <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <FileText className="size-5 text-blue-600 dark:text-blue-400" />
+                  <div className={`size-10 rounded-lg ${theme.accentBgLight} flex items-center justify-center`}>
+                    <FileText className={`size-5 ${theme.accentTextDark} dark:${theme.accentText}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{doc.name}</p>
@@ -274,16 +276,16 @@ export function Home() {
       </Card>
 
       {/* SSO Demo Card */}
-      <Card className="border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/5">
+      <Card className={`${otherTheme.cardBorder} ${otherTheme.cardBg}`}>
         <CardContent className="p-5">
           <div className="flex items-center gap-4">
-            <div className="size-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-violet-500/25">
-              T
+            <div className={`size-12 rounded-xl bg-gradient-to-br ${otherTheme.gradient} flex items-center justify-center text-white text-lg font-bold shadow-lg ${otherTheme.shadow}`}>
+              {otherTheme.shortName}
             </div>
             <div className="flex-1">
               <p className="font-semibold">Try Single Sign-On</p>
               <p className="text-sm text-muted-foreground">
-                Visit TaskFlow - you're already logged in!
+                Visit {otherTheme.name} - you're already logged in!
               </p>
             </div>
             <a
@@ -291,9 +293,9 @@ export function Home() {
               target="_blank"
               rel="noopener noreferrer"
               className={buttonVariants({ variant: 'default' })}
-              aria-label="Open TaskFlow application in new tab"
+              aria-label={`Open ${otherTheme.name} application in new tab`}
             >
-              Open TaskFlow
+              Open {otherTheme.name}
             </a>
           </div>
         </CardContent>

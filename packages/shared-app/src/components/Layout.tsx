@@ -1,17 +1,71 @@
 import * as React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { buttonVariants, Separator, ThemeToggle, Toaster, Button, Code, Shield, Settings, LogOut, Spinner } from '@repo/ui';
-import { useDebug } from '../context/DebugContext';
-import { useAuth, OTHER_APP_URL } from '../context/AuthContext';
+import {
+  buttonVariants,
+  Separator,
+  ThemeToggle,
+  Toaster,
+  Button,
+  Code,
+  Shield,
+  Settings,
+  LogOut,
+  Spinner,
+  cn,
+} from '@repo/ui';
+import { useAppTheme } from '../context/ThemeContext';
+import { getOtherAppTheme } from '../theme';
 import { DebugSidebar } from './DebugSidebar';
+
+interface DebugEvent {
+  id: string;
+  type: string;
+  timestamp: Date;
+  description: string;
+  data?: Record<string, unknown>;
+}
+
+interface DecodedToken {
+  header: Record<string, unknown>;
+  payload: Record<string, unknown>;
+}
 
 interface LayoutProps {
   children: React.ReactNode;
+  // Auth state
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  user: { email?: string; name?: string } | null;
+  onLogin: () => void;
+  onLogout: () => Promise<void>;
+  // Debug state
+  events: DebugEvent[];
+  tokens: {
+    accessToken: string | null;
+    refreshToken: string | null;
+    idToken: string | null;
+  };
+  decodedTokens: {
+    accessToken: DecodedToken | null;
+    idToken: DecodedToken | null;
+  };
+  accessTokenExpiry: Date | null;
 }
 
-export function Layout({ children }: LayoutProps) {
-  const { events } = useDebug();
-  const { tokens, decodedTokens, accessTokenExpiry, isAdmin, isAuthenticated, user, login, logout } = useAuth();
+export function Layout({
+  children,
+  isAuthenticated,
+  isAdmin,
+  user,
+  onLogin,
+  onLogout,
+  events,
+  tokens,
+  decodedTokens,
+  accessTokenExpiry,
+}: LayoutProps) {
+  const { theme, otherAppUrl } = useAppTheme();
+  const otherTheme = getOtherAppTheme(theme);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
@@ -19,13 +73,13 @@ export function Layout({ children }: LayoutProps) {
 
   const handleLogin = () => {
     setIsLoggingIn(true);
-    login();
+    onLogin();
     // Loading state will be cleared by page navigation
   };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await logout();
+    await onLogout();
     setIsLoggingOut(false);
   };
 
@@ -37,12 +91,16 @@ export function Layout({ children }: LayoutProps) {
       <div className="min-h-screen bg-background flex">
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-10">
+        <header className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-50">
           {/* Left: Logo + Nav */}
           <div className="flex items-center gap-3 sm:gap-6">
             <Link to="/" className="flex items-center gap-2">
-              <div className="size-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-violet-500/20">
-                T
+              <div className={cn(
+                "size-9 rounded-xl flex items-center justify-center text-white font-bold shadow-lg",
+                theme.gradientBg,
+                theme.shadow
+              )}>
+                {theme.shortName}
               </div>
             </Link>
 
@@ -97,10 +155,10 @@ export function Layout({ children }: LayoutProps) {
                   size="sm"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="hidden sm:flex"
+                  className="hidden sm:flex items-center gap-1.5"
                 >
-                  {isLoggingOut ? <Spinner className="size-4" /> : <LogOut className="size-4 mr-1.5" />}
-                  Sign out
+                  {isLoggingOut ? <Spinner className="size-4" /> : <LogOut className="size-4" />}
+                  <span>Sign out</span>
                 </Button>
                 <Button
                   variant="ghost"
@@ -108,6 +166,7 @@ export function Layout({ children }: LayoutProps) {
                   onClick={handleLogout}
                   disabled={isLoggingOut}
                   className="size-8 sm:hidden"
+                  aria-label="Sign out"
                 >
                   {isLoggingOut ? <Spinner className="size-4" /> : <LogOut className="size-4" />}
                 </Button>
@@ -117,7 +176,11 @@ export function Layout({ children }: LayoutProps) {
                 onClick={handleLogin}
                 disabled={isLoggingIn}
                 size="sm"
-                className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white"
+                className={cn(
+                  "text-white bg-gradient-to-r",
+                  theme.gradient,
+                  theme.shadow
+                )}
               >
                 {isLoggingIn ? <Spinner className="size-4 mr-1.5" /> : null}
                 Sign in
@@ -125,17 +188,22 @@ export function Layout({ children }: LayoutProps) {
             )}
             <Separator orientation="vertical" className="h-5" />
             <a
-              href={OTHER_APP_URL}
+              href={otherAppUrl}
               className={buttonVariants({ variant: "ghost", size: "sm", className: "text-muted-foreground hidden sm:flex" })}
             >
-              DocVault →
+              {otherTheme.name} →
             </a>
             <a
-              href={OTHER_APP_URL}
+              href={otherAppUrl}
               className={buttonVariants({ variant: "ghost", size: "icon", className: "sm:hidden size-8" })}
-              title="DocVault"
+              title={otherTheme.name}
             >
-              <span className="size-6 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">D</span>
+              <span className={cn(
+                "size-6 rounded-lg flex items-center justify-center text-white text-xs font-bold",
+                otherTheme.gradientBg
+              )}>
+                {otherTheme.shortName}
+              </span>
             </a>
             <ThemeToggle />
             {isAuthenticated && (
@@ -144,6 +212,7 @@ export function Layout({ children }: LayoutProps) {
                 size="icon"
                 className="size-8 md:hidden"
                 onClick={() => setSidebarOpen(true)}
+                aria-label="Open debug sidebar"
               >
                 <Code className="size-4" />
               </Button>

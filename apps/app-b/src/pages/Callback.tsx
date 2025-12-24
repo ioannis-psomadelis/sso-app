@@ -1,131 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent, Check, X, Spinner } from '@repo/ui';
+import { Callback as SharedCallback } from '@repo/shared-app';
 import { useAuth } from '../context/AuthContext';
-import { logCodeReceived } from '@repo/auth-client';
 
 export function Callback() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { handleCallback, isAuthenticated, isLoading } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const isProcessingRef = useRef(false);
 
-  useEffect(() => {
-    // If already authenticated, just redirect to home
-    if (isAuthenticated && !isLoading) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    // Wait for auth loading to complete before processing
-    if (isLoading) return;
-
-    // Prevent double execution from React StrictMode
-    if (isProcessingRef.current) return;
-
-    const code = searchParams.get('code');
-    const err = searchParams.get('error');
-
-    // No code means user navigated here directly - redirect to home
-    if (!code && !err) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    if (err) {
-      setError(err);
-      setStatus('error');
-      return;
-    }
-
-    const state = searchParams.get('state');
-
-    if (code && !state) {
-      setError('Missing state parameter - possible security issue');
-      setStatus('error');
-      return;
-    }
-
-    if (code && state) {
-      isProcessingRef.current = true;
-      logCodeReceived(code);
-
-      handleCallback(code, state)
-        .then(() => {
-          setStatus('success');
-          setTimeout(() => navigate('/', { replace: true }), 500);
-        })
-        .catch((e: Error) => {
-          // Invalid state usually means stale callback (back button, refresh)
-          // Just redirect home instead of showing error
-          if (e.message.includes('state')) {
-            navigate('/', { replace: true });
-            return;
-          }
-          setError(e.message);
-          setStatus('error');
-          isProcessingRef.current = false;
-        });
-    }
-  }, [searchParams, handleCallback, navigate, isAuthenticated, isLoading]);
-
-  if (status === 'success') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-sm text-center">
-          <CardHeader className="space-y-4">
-            <div className="size-16 mx-auto rounded-full bg-green-500/10 flex items-center justify-center">
-              <Check className="size-8 text-green-600" />
-            </div>
-            <div>
-              <CardTitle className="text-xl text-green-600">Welcome to DocVault!</CardTitle>
-              <p className="text-sm text-muted-foreground mt-2">
-                Redirecting...
-              </p>
-            </div>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-sm text-center">
-          <CardHeader className="space-y-4">
-            <div className="size-16 mx-auto rounded-full bg-destructive/10 flex items-center justify-center">
-              <X className="size-8 text-destructive" />
-            </div>
-            <div>
-              <CardTitle className="text-xl text-destructive">Authentication Failed</CardTitle>
-              <p className="text-sm text-muted-foreground mt-2">
-                {error || 'An error occurred during sign in'}
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <button
-              onClick={() => navigate('/')}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              Return to home
-            </button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Simple loading state
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-4">
-        <Spinner className="size-8 text-blue-600" />
-        <p className="text-sm text-muted-foreground">Signing in...</p>
-      </div>
-    </div>
+    <SharedCallback
+      handleCallback={handleCallback}
+      isAuthenticated={isAuthenticated}
+      isLoading={isLoading}
+    />
   );
 }
