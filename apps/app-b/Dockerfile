@@ -11,6 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/app-b/package.json ./apps/app-b/
 COPY packages/auth-client/package.json ./packages/auth-client/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/shared-app/package.json ./packages/shared-app/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -19,6 +20,7 @@ RUN pnpm install --frozen-lockfile
 COPY apps/app-b ./apps/app-b
 COPY packages/auth-client ./packages/auth-client
 COPY packages/ui ./packages/ui
+COPY packages/shared-app ./packages/shared-app
 
 # Build arguments for environment variables (injected at build time)
 ARG VITE_IDP_URL
@@ -32,6 +34,7 @@ ENV VITE_OTHER_APP_URL=$VITE_OTHER_APP_URL
 # Build the packages and app
 RUN pnpm --filter @repo/ui build || true
 RUN pnpm --filter @repo/auth-client build || true
+RUN pnpm --filter @repo/shared-app build
 RUN pnpm --filter @repo/app-b build
 
 # Stage 2: Production with nginx
